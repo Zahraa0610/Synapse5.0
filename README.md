@@ -90,6 +90,21 @@ The system starts empty. The Ministry admin registers shelters (Ministry → She
 shelter) and approves clinician and NGO accounts; everyone else signs up in the app. Sign-up with a
 phone number requires the WhatsApp code.
 
+## Demo mode (this branch only)
+
+This `demo` branch adds a fictional scenario for presentations: 8 shelters across Lebanon's regions,
+families, volunteers, a doctor, a donor, the Ministry and an NGO, with months of history. The main
+branch does not contain it.
+
+```bash
+cd backend
+python manage.py demo     # deletes ALL data in Firestore, then loads the demo scenario
+python run.py --demo      # sign-in page shows "Try a role" buttons; phone codes appear on screen
+```
+
+All demo content is in `backend/app/demo_data.py`. See [DEMO.md](DEMO.md) for a walkthrough to
+follow while recording. Use a **separate Firebase project** for the demo so it never touches real data.
+
 ## Tests
 
 The API tests run the real backend on an in-memory store (no Firebase or Twilio needed):

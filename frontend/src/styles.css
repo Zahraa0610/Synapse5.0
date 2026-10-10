@@ -404,3 +404,5 @@ table.data th { font-size: 12px; color: var(--muted); font-weight: 600; }
 .crit-control { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .segment button.active.danger { background: var(--rose); color: #fff; }
 
+
+.demo-box { padding: 12px; border: 1px dashed var(--line); border-radius: 14px; background: var(--bg); }

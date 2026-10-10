@@ -298,6 +298,8 @@ const ar = {
   "Send support request": "إرسال طلب الدعم",
   "My previous requests": "طلباتي السابقة",
   "No requests yet.": "لا توجد طلبات بعد.",
+  "Demo mode": "وضع العرض التجريبي",
+  "Demo mode: your code is": "وضع العرض: رمزك هو",
   "WhatsApp is not set up on this server yet. The code was printed in the server console.": "واتساب غير مفعّل على هذا الخادم بعد. طُبع الرمز في نافذة الخادم.",
   "If this number has an account, we sent a code on WhatsApp.": "إذا كان لهذا الرقم حساب، أرسلنا رمزاً عبر واتساب.",
   "We sent a 6-digit code on WhatsApp.": "أرسلنا رمزاً من 6 أرقام عبر واتساب.",

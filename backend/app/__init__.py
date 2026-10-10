@@ -45,6 +45,8 @@ def create_app(config=None):
         TWILIO_AUTH_TOKEN=os.environ.get("TWILIO_AUTH_TOKEN"),
         TWILIO_WHATSAPP_FROM=os.environ.get("TWILIO_WHATSAPP_FROM"),
         TWILIO_CONTENT_SID=os.environ.get("TWILIO_CONTENT_SID"),
+        # Demo mode (demo branch only): fictional data + quick-login buttons
+        DEMO=os.environ.get("MAAK_DEMO", "").lower() in {"1", "true", "yes"},
         UPLOAD_FOLDER=os.path.join(BASE_DIR, "uploads"),
         MAX_CONTENT_LENGTH=20 * 1024 * 1024,
     )
@@ -64,6 +66,23 @@ def create_app(config=None):
 
     @app.get("/api/health")
     def health():
-        return {"ok": True, "name": "Ma'ak"}
+        return {"ok": True, "name": "Ma'ak", "demo": app.config["DEMO"]}
+
+    @app.get("/api/demo/accounts")
+    def demo_accounts():
+        if not app.config["DEMO"]:
+            return {"error": "Not found"}, 404
+        from .demo_data import DEMO_ACCOUNTS, DEMO_PASSWORD
+
+        return {"accounts": [{"label": label, "email": email} for label, email in DEMO_ACCOUNTS], "password": DEMO_PASSWORD}
+
+    if app.config["DEMO"]:
+        from .demo_data import load_demo_data
+
+        with app.app_context():
+            if load_demo_data():
+                print(" * Demo mode: demo data loaded.")
+            else:
+                print(" * Demo mode: the database already has data. Run `python manage.py demo` for a fresh demo.")
 
     return app
