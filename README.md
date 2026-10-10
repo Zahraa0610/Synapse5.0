@@ -23,23 +23,62 @@ The app works in **English and Arabic** (right-to-left).
 
 | Part | Stack |
 |---|---|
-| Backend | Python 3, Flask, Flask-SQLAlchemy (SQLite), JWT auth |
+| Backend | Python 3, Flask, JWT auth |
+| Database | Google Cloud **Firestore** (Firebase) |
+| Verification codes | **WhatsApp** through Twilio |
 | Frontend | React 19, React Router, Vite |
+
+Passwords and verification codes are stored only as salted hashes (scrypt), never as plain text.
+
+## Set up Firebase (database)
+
+1. Go to <https://console.firebase.google.com> → **Add project** (Google Analytics is not needed).
+2. In the project: **Build → Firestore Database → Create database** → choose a location
+   (e.g. `europe-west`) → start in **production mode**. The app talks to Firestore from the
+   backend with an admin key, so no public access rules are needed.
+3. **Project settings (gear icon) → Service accounts → Generate new private key.** A JSON file
+   downloads. Move it to `backend/firebase-key.json`. **Never commit this file** (it is in
+   `.gitignore`).
+
+## Set up WhatsApp codes (Twilio)
+
+1. Create a free account at <https://www.twilio.com/try-twilio>.
+2. In the Twilio console: **Messaging → Try it out → Send a WhatsApp message**. This is the
+   WhatsApp **sandbox**: it shows a number (`+1 415 523 8886`) and a join phrase like `join red-tiger`.
+3. On each phone that will receive codes, send that join phrase on WhatsApp to the sandbox number
+   (once per phone).
+4. Copy the **Account SID** and **Auth Token** from the Twilio console home page.
+
+For a real launch, register your own WhatsApp sender in Twilio and an approved *authentication*
+template, then set `TWILIO_WHATSAPP_FROM` to your number and `TWILIO_CONTENT_SID` to the template.
+If Twilio is not configured, codes are printed in the backend console so development still works.
+
+## Configure
+
+Copy `backend/.env.example` to `backend/.env` and fill it in:
+
+```
+MAAK_SECRET=any-long-random-text
+FIREBASE_CREDENTIALS=firebase-key.json
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=xxxxxxxxxxxxxxxx
+TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
+```
 
 ## Run it
 
 You need **Python 3.10+** and **Node.js 18+**.
 
-**1. Backend** (terminal 1)
+**Backend** (terminal 1)
 
 ```bash
 cd backend
 pip install -r requirements.txt
-python manage.py create-admin     # first time only: creates the first Ministry account
+python manage.py create-admin     # first time only: the first Ministry of Public Health account
 python run.py                     # http://127.0.0.1:5000
 ```
 
-**2. Frontend** (terminal 2)
+**Frontend** (terminal 2)
 
 ```bash
 cd frontend
@@ -47,43 +86,25 @@ npm install
 npm run dev                       # open http://localhost:5173
 ```
 
-A normal start is an **empty** system. The Ministry admin registers shelters (Ministry → Shelters →
-Register a shelter) and approves clinician and NGO accounts; everyone else signs up from the app.
+The system starts empty. The Ministry admin registers shelters (Ministry → Shelters → Register a
+shelter) and approves clinician and NGO accounts; everyone else signs up in the app. Sign-up with a
+phone number requires the WhatsApp code.
 
-## Demo mode
+## Tests
 
-For presentations there is a fictional scenario — 8 shelters across Lebanon's regions, families,
-volunteers, a doctor, a donor, the Ministry and an NGO, with months of history.
+The API tests run the real backend on an in-memory store (no Firebase or Twilio needed):
 
 ```bash
 cd backend
-python manage.py demo     # wipes the database and loads the demo scenario
-python run.py --demo      # demo mode: shows quick-login buttons on the sign-in page
+python -m unittest discover tests
 ```
-
-Demo mode only changes two things: the sign-in page shows "Try a role" buttons, and phone login shows
-the one-time code on screen (normally it is printed in the server console until an SMS provider is
-connected in `send_login_code` in `backend/app/routes_auth.py`). All demo content lives in
-`backend/app/demo_data.py`; nothing in the app code depends on it. See [DEMO.md](DEMO.md) for a
-walkthrough you can follow while recording.
 
 ## Admin commands
 
 ```bash
-python manage.py reset          # delete all data, create empty tables
-python manage.py demo           # reset, then load the demo scenario
 python manage.py create-admin   # create a Ministry of Public Health account
+python manage.py reset          # delete ALL data in Firestore (asks for confirmation)
 ```
-
-If the backend says the database is from an older version, run `python manage.py reset`
-(or `python manage.py demo`).
-
-## Configuration
-
-| Variable | Purpose |
-|---|---|
-| `MAAK_SECRET` | Secret used to sign login tokens. **Set this in any real deployment.** |
-| `MAAK_DEMO=1` | Same as `python run.py --demo`. |
 
 ## Design principles
 
@@ -92,18 +113,23 @@ If the backend says the database is from an older version, run `python manage.py
 - **Patient-entered and clinician-entered records are always labelled.**
 - **The Ministry sees aggregated counts**, not individual health passports.
 - **No exact addresses** are asked for in donation requests from families outside shelters.
+- **Login codes are single-use**, expire after 10 minutes, allow 5 attempts and one resend per minute;
+  the API never reveals whether a phone number has an account.
 
 ## Project layout
 
 ```
 backend/
   app/
-    models.py          database tables
+    models.py          data models (one Firestore collection each)
+    store.py           small model layer on Firestore (+ in-memory store for tests)
+    whatsapp.py        sends verification codes through Twilio
     domain.py          shared logic: criticality, priorities, reports, forecasts
     routes_*.py        API endpoints by area
-    demo_data.py       fictional demo scenario (only loaded on request)
+  tests/               end-to-end API tests
   manage.py            admin commands
   run.py               start the server
+  .env.example         settings template
 frontend/
   src/
     main.jsx           routes
