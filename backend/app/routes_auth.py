@@ -56,7 +56,7 @@ def register():
         license_expires=parse_date(data.get("license_expires")),
         verification_status=status,
         helper_type=(data.get("helper_type") or "").strip() or None,
-        shelter_id=shelter_id if role == "shelter_coordinator" else None,
+        shelter_id=shelter_id if role in {"shelter_coordinator", "caregiver"} else None,
     )
     db.session.add(user)
     db.session.commit()

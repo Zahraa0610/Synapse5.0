@@ -144,9 +144,10 @@ export function RegisterPage() {
   const [file, setFile] = useState(null);
   const [captured, setCaptured] = useState(false);
   const set = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
+  useEffect(() => { ensureShelters(); }, []);
 
   async function ensureShelters() {
-    if (shelters.length || form.role !== "shelter_coordinator") return;
+    if (shelters.length) return;
     const data = await api("/shelters").catch(() => null);
     if (data) setShelters(data.shelters);
   }
@@ -154,7 +155,7 @@ export function RegisterPage() {
   async function nextAccount(event) {
     event.preventDefault();
     setError("");
-    if (form.role === "shelter_coordinator" && !shelters.length) {
+    if (!shelters.length) {
       try {
         const data = await api("/shelters");
         setShelters(data.shelters || []);
@@ -220,7 +221,7 @@ export function RegisterPage() {
               <div className="small">{t("I am signing up as")}</div>
               <div className="role-grid" style={{ marginTop: 8 }}>
                 {ROLES.map(([value, label]) => (
-                  <button type="button" key={value} className={form.role === value ? "active" : ""} onClick={() => { setForm({ ...form, role: value }); if (value === "shelter_coordinator") ensureShelters(); }}>{label}</button>
+                  <button type="button" key={value} className={form.role === value ? "active" : ""} onClick={() => setForm({ ...form, role: value })}>{label}</button>
                 ))}
               </div>
             </div>
@@ -233,10 +234,10 @@ export function RegisterPage() {
                 <Select value={form.helper_type} onChange={set("helper_type")} options={HELPERS.map(([value, label]) => ({ value, label }))} />
               </Field>
             )}
-            {form.role === "shelter_coordinator" && (
-              <Field label="Shelter">
+            {(form.role === "shelter_coordinator" || form.role === "caregiver") && (
+              <Field label={form.role === "caregiver" ? "Shelter you are staying at" : "Shelter"}>
                 <select value={form.shelter_id} onChange={set("shelter_id")} onFocus={ensureShelters}>
-                  <option value="">Choose after sign-in</option>
+                  <option value="">{form.role === "caregiver" ? "Not in a shelter" : "Choose after sign-in"}</option>
                   {shelters.map((shelter) => <option key={shelter.id} value={shelter.id}>{shelter.name}</option>)}
                 </select>
               </Field>

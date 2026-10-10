@@ -178,6 +178,11 @@ const ar = {
   "Under review": "قيد المراجعة",
   "Being addressed": "قيد المعالجة",
   "Resolved": "تم الحل",
+  "You are here": "أنت هنا",
+  "Move requested": "تم طلب الانتقال",
+  "Sending…": "جارٍ الإرسال…",
+  "Shelter you are staying at": "المركز الذي تقيم فيه",
+  "Not in a shelter": "لست في مركز إيواء",
 };
 
 const I18nContext = createContext(null);

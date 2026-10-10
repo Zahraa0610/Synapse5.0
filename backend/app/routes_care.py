@@ -11,6 +11,7 @@ from .models import (
     PersonalSupply,
     Pregnancy,
     Profile,
+    Relocation,
     Shelter,
 )
 
@@ -51,6 +52,10 @@ def _care_payload(profile):
         "seats": [_seat(item) for item in DialysisSeat.query.order_by(DialysisSeat.seats_available.desc()).all()],
         "pregnancy": _pregnancy(pregnancy),
         "backup_shelters": [shelter_public(item) for item in shelters],
+        "relocations": [
+            {"id": item.id, "destination_shelter_id": item.destination_shelter_id, "status": item.status}
+            for item in Relocation.query.filter_by(profile_id=profile.id).all()
+        ],
     }
 
 

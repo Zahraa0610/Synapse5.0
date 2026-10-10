@@ -357,7 +357,13 @@ export function CarePage() {
                   <strong>{shelter.name}</strong>
                   <div className="small muted">{shelter.region} · {shelter.electricity_hours}h backup · {shelter.accessible ? "Accessible" : "Not accessible"}</div>
                 </div>
-                <MoveButton profileId={profileId} shelter={shelter} />
+                <MoveButton
+                  profileId={profileId}
+                  shelter={shelter}
+                  currentShelterId={data.profile.shelter_id}
+                  requested={(data.relocations || []).some((item) => item.destination_shelter_id === shelter.id && item.status === "requested")}
+                  onDone={care.reload}
+                />
               </div>
             ))}
           </section>
@@ -428,14 +434,33 @@ function DependencyForm({ profileId, onDone }) {
   );
 }
 
-function MoveButton({ profileId, shelter }) {
+function MoveButton({ profileId, shelter, currentShelterId, requested, onDone }) {
   const { t } = useI18n();
-  const [done, setDone] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  if (currentShelterId === shelter.id) return <Pill value="available">{t("You are here")}</Pill>;
+  async function request() {
+    setBusy(true);
+    setError("");
+    try {
+      await api("/relocations", {
+        method: "POST",
+        body: JSON.stringify({ profile_id: profileId, destination_shelter_id: shelter.id, reason: `Needs backup power at ${shelter.name}` }),
+      });
+      onDone?.();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
-    <button className="btn-soft" type="button" onClick={async () => {
-      await api("/relocations", { method: "POST", body: JSON.stringify({ profile_id: profileId, destination_shelter_id: shelter.id, reason: `Needs backup power at ${shelter.name}` }) });
-      setDone(true);
-    }}>{done ? "Requested" : t("Request a move")}</button>
+    <div className="stack" style={{ alignItems: "flex-end" }}>
+      <button className="btn-soft" type="button" disabled={busy || requested} onClick={request}>
+        {requested ? t("Move requested") : busy ? t("Sending…") : t("Request a move")}
+      </button>
+      <ErrorText>{error}</ErrorText>
+    </div>
   );
 }
 
