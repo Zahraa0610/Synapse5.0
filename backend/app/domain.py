@@ -2,7 +2,6 @@ from datetime import date, datetime, timezone
 
 from .extensions import db
 from .models import (
-    AccessGrant,
     Complaint,
     CriticalityReview,
     Dependency,
@@ -222,16 +221,16 @@ def roster_row(profile):
 
 
 def can_view_passport(user, profile):
-    if user.role in {"ministry", "ngo", "donor"}:
-        return False
+    """Any signed-in user who has the passport ID can read the passport.
+    (There is no per-patient access list any more.)"""
+    return user is not None and profile is not None
+
+
+def can_write_passport(user, profile):
+    """The family that owns the profile, or an approved clinician, can add records."""
     if profile.owner_user_id and profile.owner_user_id == user.id:
         return True
-    if user.role in CLINICAL and user.verification_status == "approved":
-        grant = AccessGrant.query.filter_by(
-            profile_id=profile.id, grantee_user_id=user.id, status="active"
-        ).first()
-        return grant is not None
-    return False
+    return user.role in CLINICAL and user.verification_status == "approved"
 
 
 def priority_for(shelter):

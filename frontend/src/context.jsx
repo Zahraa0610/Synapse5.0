@@ -72,7 +72,6 @@ const ar = {
   "Medications": "الأدوية",
   "Records": "السجلات",
   "Vaccines": "اللقاحات",
-  "Access": "الوصول",
   "All": "الكل",
   "Add a record": "إضافة سجل",
   "Title": "العنوان",
@@ -84,9 +83,6 @@ const ar = {
   "Patient-entered": "أدخله المريض",
   "Clinician-entered": "أدخله الطبيب",
   "Attach a file": "إرفاق ملف",
-  "Who can see this passport": "من يمكنه رؤية الجواز",
-  "Grant access": "منح الوصول",
-  "Revoke": "سحب الوصول",
   "Emergency card": "بطاقة الطوارئ",
   "Save on this phone": "احفظها على هذا الهاتف",
   "Saved on this phone": "حُفظت على هذا الهاتف",
@@ -152,7 +148,6 @@ const ar = {
   "Find a patient": "ابحث عن مريض",
   "Add a clinician record": "إضافة سجل طبي",
   "Save to health passport": "حفظ في الجواز الصحي",
-  "Patients grant access. You cannot open a passport they have not shared.": "المريض يمنح الوصول. لا يمكن فتح جواز لم يشاركه.",
   "National shelter overview": "نظرة وطنية على المراكز",
   "Demand forecast": "تقدير الطلب",
   "Planning estimate from reported shortages. A person decides what to send.": "تقدير للتخطيط من النواقص المبلّغ عنها. الشخص يقرر ما يُرسل.",
@@ -210,6 +205,12 @@ const ar = {
   "Item": "المادة",
   "What food or feeding supply?": "ما الطعام أو مستلزم التغذية؟",
   "How much is left?": "كم تبقى؟",
+  "Find a health passport": "البحث عن جواز صحي",
+  "Passport ID": "رقم الجواز",
+  "Open passport": "فتح الجواز",
+  "Find by ID": "بحث بالرقم",
+  "Find passport": "بحث عن جواز",
+  "Share the passport ID with a doctor or responder so they can open this passport. The QR opens a short emergency summary.": "شارك رقم الجواز مع الطبيب أو المسعف ليفتح الجواز. رمز QR يفتح ملخص طوارئ قصيراً.",
 };
 
 const I18nContext = createContext(null);

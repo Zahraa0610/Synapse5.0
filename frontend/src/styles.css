@@ -344,3 +344,5 @@ th, td { padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align:
   background: var(--green-soft);
 }
 .need-tile:focus-visible { outline: 3px solid var(--green-2); outline-offset: 2px; }
+
+.passport-id-input { font-family: "IBM Plex Mono", ui-monospace, monospace; letter-spacing: 0.06em; text-transform: uppercase; }

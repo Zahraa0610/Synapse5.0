@@ -14,7 +14,6 @@ from .domain import (
     support_counts,
     user_public,
 )
-from .domain import can_view_passport
 from .extensions import db
 from .http import error, login_required, payload
 from .models import (
@@ -34,20 +33,24 @@ oversight_bp = Blueprint("oversight", __name__)
 @oversight_bp.get("/doctor/patients")
 @login_required({"doctor", "nurse", "psychologist"})
 def doctor_patients():
-    from .models import AccessGrant
+    """Patients this clinician has written records for. Search by name or passport ID."""
+    from .domain import profile_id_from_passport_id
+    from .models import MedicalEntry
 
     if g.user.verification_status != "approved":
         return jsonify({"patients": [], "verification_status": g.user.verification_status, "user": user_public(g.user)})
     q = (request.args.get("q") or "").strip()
-    grants = AccessGrant.query.filter_by(grantee_user_id=g.user.id, status="active").all()
-    patients = []
-    for grant in grants:
-        profile = db.session.get(Profile, grant.profile_id)
-        if not profile:
-            continue
-        if q and q.lower() not in profile.full_name.lower():
-            continue
-        patients.append(profile_public(profile))
+    by_id = profile_id_from_passport_id(q) if q else None
+    if by_id:
+        profile = db.session.get(Profile, by_id)
+        patients = [profile_public(profile)] if profile else []
+    else:
+        ids = {row.profile_id for row in MedicalEntry.query.filter_by(author_user_id=g.user.id).all()}
+        patients = []
+        for pid in sorted(ids):
+            profile = db.session.get(Profile, pid)
+            if profile and (not q or q.lower() in profile.full_name.lower()):
+                patients.append(profile_public(profile))
     return jsonify({"patients": patients, "verification_status": g.user.verification_status, "user": user_public(g.user)})
 
 
@@ -55,8 +58,8 @@ def doctor_patients():
 @login_required({"doctor", "nurse", "psychologist"})
 def doctor_profile(profile_id):
     profile = db.session.get(Profile, profile_id)
-    if not profile or not can_view_passport(g.user, profile):
-        return error("This patient has not granted you access", 403)
+    if not profile:
+        return error("Health passport not found", 404)
     from .routes_passport import _entry_json
     from .models import MedicalEntry
 

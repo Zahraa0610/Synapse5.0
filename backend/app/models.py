@@ -91,17 +91,6 @@ class Attachment(db.Model):
     mime_type = db.Column(db.String(120))
 
 
-class AccessGrant(db.Model):
-    __tablename__ = "access_grants"
-
-    id = db.Column(db.Integer, primary_key=True)
-    profile_id = db.Column(db.Integer, db.ForeignKey("profiles.id"), nullable=False)
-    grantee_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
-    granted_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id"))
-    status = db.Column(db.String(20), nullable=False, default="active")
-    created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
-
-
 class Dependency(db.Model):
     __tablename__ = "dependencies"
 

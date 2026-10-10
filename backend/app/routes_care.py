@@ -33,10 +33,6 @@ def care(profile_id):
         return error("You do not have access to this care record", 403)
     if g.user.role == "shelter_coordinator" and profile.shelter_id != g.user.shelter_id:
         return error("You do not have access to this care record", 403)
-    from .domain import can_view_passport
-
-    if g.user.role in {"doctor", "nurse"} and not can_view_passport(g.user, profile):
-        return error("This patient has not granted you access", 403)
     return jsonify(_care_payload(profile))
 
 
@@ -295,10 +291,6 @@ def review_criticality(profile_id):
     if g.user.role == "shelter_coordinator" and profile.shelter_id != g.user.shelter_id:
         return error("This resident is not at your shelter", 403)
     if g.user.role in {"doctor", "nurse"}:
-        from .domain import can_view_passport
-
-        if not can_view_passport(g.user, profile):
-            return error("This patient has not granted you access", 403)
         if g.user.verification_status != "approved":
             return error("Your credentials are still under review", 403)
     data = payload()

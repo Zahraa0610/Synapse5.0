@@ -141,7 +141,6 @@ export function PassportPage() {
     else if (profiles[0] && !profileId) setProfileId(profiles[0].id);
   }, [profiles, profileId]);
   const passport = useData(profileId ? `/profiles/${profileId}/passport` : null);
-  const clinicians = useData("/clinicians");
   const [tab, setTab] = useState("all");
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
@@ -155,7 +154,10 @@ export function PassportPage() {
 
   return (
     <div className="stack">
-      <h1>{t("Health passport")}</h1>
+      <div className="spread">
+        <h1>{t("Health passport")}</h1>
+        <Link className="text-btn" to="/lookup">{t("Find by ID")}</Link>
+      </div>
       <Picker profiles={profiles} current={profileId} onChange={setProfileId} />
       <ErrorText>{home.error || passport.error || error}</ErrorText>
       {passport.data && (
@@ -169,23 +171,18 @@ export function PassportPage() {
             <Pill value={passport.data.profile.criticality.level}>{passport.data.profile.criticality.confirmed ? "Confirmed" : "Suggested"} {passport.data.profile.criticality.level}</Pill>
           </div>
           <div className="segment" style={{ overflowX: "auto" }}>
-            {[["all", "All"], ["condition", "Conditions"], ["medication", "Medications"], ["records", "Records"], ["vaccine", "Vaccines"], ["access", "Access"]].map(([value, label]) => (
+            {[["all", "All"], ["condition", "Conditions"], ["medication", "Medications"], ["records", "Records"], ["vaccine", "Vaccines"]].map(([value, label]) => (
               <button key={value} type="button" className={tab === value ? "active" : ""} onClick={() => setTab(value)}>{t(label)}</button>
             ))}
           </div>
-          {tab !== "access" && (
-            <div className="card">
-              {entries.map((entry) => <EntryRow key={entry.id} entry={entry} onChanged={passport.reload} />)}
-              {entries.length === 0 && <p className="muted small">No records in this section yet.</p>}
-            </div>
-          )}
-          {tab !== "access" && <EntryForm profileId={profileId} onDone={passport.reload} />}
-          {tab === "access" && (
-            <AccessPanel passport={passport.data} clinicians={clinicians.data?.clinicians || []} onDone={passport.reload} />
-          )}
+          <div className="card">
+            {entries.map((entry) => <EntryRow key={entry.id} entry={entry} onChanged={passport.reload} />)}
+            {entries.length === 0 && <p className="muted small">No records in this section yet.</p>}
+          </div>
+          <EntryForm profileId={profileId} onDone={passport.reload} />
           <div className="stack">
             <h3>{t("Emergency card")}</h3>
-            <Note>The QR opens a short emergency summary. The rest of the passport stays private.</Note>
+            <Note>{t("Share the passport ID with a doctor or responder so they can open this passport. The QR opens a short emergency summary.")}</Note>
             <Button type="button" onClick={savePhone}>{saved ? "Saved on this phone" : "Save on this phone"}</Button>
             {saved && <SummaryCard summary={JSON.parse(localStorage.getItem("maak_offline") || "[]")[0]} />}
           </div>
@@ -195,7 +192,7 @@ export function PassportPage() {
   );
 }
 
-function EntryRow({ entry, onChanged }) {
+function EntryRow({ entry, onChanged, readOnly }) {
   const { t } = useI18n();
   const [opening, setOpening] = useState(false);
   async function openFile(id) {
@@ -218,7 +215,7 @@ function EntryRow({ entry, onChanged }) {
       </div>
       <div className="stack">
         {entry.vaccine_status && <Pill value={entry.vaccine_status}>{entry.vaccine_status}</Pill>}
-        <button className="text-btn" type="button" onClick={async () => { await api(`/entries/${entry.id}`, { method: "DELETE" }); onChanged(); }}>Remove</button>
+        {!readOnly && <button className="text-btn" type="button" onClick={async () => { await api(`/entries/${entry.id}`, { method: "DELETE" }); onChanged(); }}>Remove</button>}
       </div>
     </div>
   );
@@ -269,44 +266,6 @@ function EntryForm({ profileId, onDone }) {
       <ErrorText>{error}</ErrorText>
       <Button type="submit">Save</Button>
     </form>
-  );
-}
-
-function AccessPanel({ passport, clinicians, onDone }) {
-  const { t } = useI18n();
-  const [clinicianId, setClinicianId] = useState(clinicians[0]?.id || "");
-  const [error, setError] = useState("");
-  async function grant(event) {
-    event.preventDefault();
-    try {
-      await api(`/profiles/${passport.profile.id}/grants`, { method: "POST", body: JSON.stringify({ grantee_user_id: Number(clinicianId) }) });
-      onDone();
-    } catch (err) {
-      setError(err.message);
-    }
-  }
-  return (
-    <div className="stack">
-      <Note>{t("Patients grant access. You cannot open a passport they have not shared.")}</Note>
-      <div className="card">
-        {passport.grants.map((grant) => (
-          <div className="row" key={grant.id}>
-            <div><strong>{grant.name}</strong><div className="small muted">{grant.role} · {grant.specialty}</div></div>
-            <button className="text-btn" type="button" onClick={async () => { await api(`/grants/${grant.id}/revoke`, { method: "POST", body: "{}" }); onDone(); }}>{t("Revoke")}</button>
-          </div>
-        ))}
-        {passport.grants.length === 0 && <p className="muted small">No clinician has access yet.</p>}
-      </div>
-      <form className="card stack" onSubmit={grant}>
-        <Field label="Grant access">
-          <select value={clinicianId} onChange={(e) => setClinicianId(e.target.value)}>
-            {clinicians.map((person) => <option key={person.id} value={person.id}>{person.full_name} · {person.specialty || person.role}</option>)}
-          </select>
-        </Field>
-        <ErrorText>{error}</ErrorText>
-        <Button type="submit">Grant access</Button>
-      </form>
-    </div>
   );
 }
 
@@ -757,6 +716,64 @@ export function ProfilePage() {
         <div className="spread"><span>{t("Status")}</span><Pill value={user.verification_status}>{user.verification_status}</Pill></div>
       </div>
       <Button ghost onClick={logout}>Sign out</Button>
+    </div>
+  );
+}
+
+// Open any health passport with its ID (e.g. MAK-0012-6059). Works for every signed-in role.
+export function PassportLookupPage() {
+  const { t } = useI18n();
+  const initial = new URLSearchParams(window.location.search).get("id") || "";
+  const [query, setQuery] = useState(initial);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function open(id = query) {
+    const clean = id.trim();
+    if (!clean) return;
+    setBusy(true);
+    setError("");
+    try {
+      setResult(await api(`/passport/lookup/${encodeURIComponent(clean)}`));
+      window.history.replaceState(null, "", `?id=${encodeURIComponent(clean)}`);
+    } catch (err) {
+      setResult(null);
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  useEffect(() => { if (initial) open(initial); }, []);
+  const profile = result?.profile;
+  return (
+    <div className="stack">
+      <h1>{t("Find a health passport")}</h1>
+      <form className="card stack" onSubmit={(e) => { e.preventDefault(); open(); }}>
+        <Field label="Passport ID">
+          <input className="passport-id-input" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="MAK-0000-0000" autoComplete="off" required />
+        </Field>
+        <Button type="submit" disabled={busy}>{busy ? "Sending…" : "Open passport"}</Button>
+        <ErrorText>{error}</ErrorText>
+      </form>
+      {profile && (
+        <>
+          <div className="card stack">
+            <div className="spread">
+              <div>
+                <h2>{profile.full_name}</h2>
+                <p className="passport-id">{t("ID")} {profile.passport_id}</p>
+                <p className="small muted">{[profile.age != null ? `${profile.age} yrs` : null, profile.sex, profile.blood_type, profile.shelter_name].filter(Boolean).join(" · ")}</p>
+              </div>
+              <Pill value={profile.criticality.level}>{profile.criticality.level}</Pill>
+            </div>
+          </div>
+          <div className="card">
+            {result.entries.map((entry) => <EntryRow key={entry.id} entry={entry} readOnly onChanged={() => open(profile.passport_id)} />)}
+            {result.entries.length === 0 && <p className="muted small">No records in this section yet.</p>}
+          </div>
+          {result.can_edit && <EntryForm profileId={profile.id} onDone={() => open(profile.passport_id)} />}
+        </>
+      )}
     </div>
   );
 }

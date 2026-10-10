@@ -6,7 +6,7 @@ import { AuthProvider, I18nProvider, useAuth } from "./context";
 import { homeFor } from "./api";
 import Shell, { Guard, Guest } from "./Shell";
 import { EmergencyPage, LandingPage, LoginPage, PublicEmergencyPage, RegisterPage } from "./AuthPages";
-import { CarePage, HomePage, PassportPage, ProfilePage, RequestsPage } from "./PatientPages";
+import { CarePage, HomePage, PassportLookupPage, PassportPage, ProfilePage, RequestsPage } from "./PatientPages";
 import { ROLE_ROUTES } from "./RolePages";
 
 const PATIENT = ["caregiver"];
@@ -49,6 +49,7 @@ function App() {
       <Route path="/care" element={<Private roles={PATIENT}><CarePage /></Private>} />
       <Route path="/requests" element={<Private roles={PATIENT}><RequestsPage /></Private>} />
       <Route path="/me" element={<Private><ProfilePage /></Private>} />
+      <Route path="/lookup" element={<Private><PassportLookupPage /></Private>} />
 
       {/* Volunteer, donor, shelter, doctor, ministry, NGO */}
       {ROLE_ROUTES.map(([path, Page, roles]) => (

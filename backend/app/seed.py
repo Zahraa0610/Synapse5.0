@@ -5,7 +5,6 @@ from werkzeug.security import generate_password_hash
 
 from .extensions import db
 from .models import (
-    AccessGrant,
     Announcement,
     Appointment,
     Complaint,
@@ -325,15 +324,6 @@ def seed():
         occurred_on=today - timedelta(days=12),
     )
 
-    db.session.add(
-        AccessGrant(profile_id=salma.id, grantee_user_id=nadine.id, granted_by_user_id=rania.id)
-    )
-    db.session.add(
-        AccessGrant(profile_id=nabil.id, grantee_user_id=nadine.id, granted_by_user_id=rania.id)
-    )
-    db.session.add(
-        AccessGrant(profile_id=rania_profile.id, grantee_user_id=nadine.id, granted_by_user_id=rania.id)
-    )
 
     db.session.add(
         Dependency(
