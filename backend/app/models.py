@@ -263,9 +263,13 @@ class SupportFlag(db.Model):
     __tablename__ = "support_flags"
 
     id = db.Column(db.Integer, primary_key=True)
-    profile_id = db.Column(db.Integer, db.ForeignKey("profiles.id"), nullable=False)
+    # The person can be a registered profile, or just described in words.
+    profile_id = db.Column(db.Integer, db.ForeignKey("profiles.id"))
+    person_description = db.Column(db.String(200))
+    shelter_id = db.Column(db.Integer, db.ForeignKey("shelters.id"))
+    signs = db.Column(db.Text)  # ticked signs, separated by " · "
     flagged_by = db.Column(db.Integer, db.ForeignKey("users.id"))
-    reason = db.Column(db.Text, nullable=False)
+    reason = db.Column(db.Text, nullable=False)  # the short description
     includes_bullying = db.Column(db.Boolean, nullable=False, default=False)
     status = db.Column(db.String(20), nullable=False, default="open")
     created_at = db.Column(db.DateTime, default=utcnow, nullable=False)

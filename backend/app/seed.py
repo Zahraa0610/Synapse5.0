@@ -689,6 +689,9 @@ def seed():
     db.session.add(
         SupportFlag(
             profile_id=census_profiles[2].id,
+            person_description="Boy, about 9, classroom B",
+            shelter_id=census_profiles[2].shelter_id,
+            signs="Bullying of a child with a disability · Withdrawn or constantly sad",
             flagged_by=rana.id,
             reason="Child has been bullied in the shared classroom and stopped speaking at meals.",
             includes_bullying=True,

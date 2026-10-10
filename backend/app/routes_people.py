@@ -74,9 +74,9 @@ def _visible_flags():
         return SupportFlag.query.filter_by(flagged_by=g.user.id).all()
     if g.user.role == "shelter_coordinator" and g.user.shelter_id:
         ids = [profile.id for profile in Profile.query.filter_by(shelter_id=g.user.shelter_id).all()]
-        if not ids:
-            return []
-        return SupportFlag.query.filter(SupportFlag.profile_id.in_(ids)).all()
+        return SupportFlag.query.filter(
+            (SupportFlag.shelter_id == g.user.shelter_id) | (SupportFlag.profile_id.in_(ids or [0]))
+        ).all()
     return []
 
 
@@ -118,10 +118,14 @@ def _appointment(item):
 
 
 def _flag(item):
+    shelter = db.session.get(Shelter, item.shelter_id) if item.shelter_id else None
     return {
         "id": item.id,
         "profile_id": item.profile_id,
-        "who": _profile_name(item.profile_id),
+        "who": item.person_description or _profile_name(item.profile_id),
+        "registered_name": _profile_name(item.profile_id),
+        "signs": item.signs.split(" · ") if item.signs else [],
+        "shelter_name": shelter.name if shelter else None,
         "reason": item.reason,
         "includes_bullying": item.includes_bullying,
         "status": item.status,
@@ -259,22 +263,37 @@ def roster():
 @people_bp.post("/support-flags")
 @login_required({"caregiver", "volunteer", "shelter_coordinator"})
 def add_flag():
+    """Report a case that needs mental health support.
+    The person is described in words; linking a registered profile is optional."""
     data = payload()
-    profile = db.session.get(Profile, int(data.get("profile_id") or 0))
-    if not profile:
-        return error("Choose a person", 400)
-    if g.user.role == "caregiver" and profile.owner_user_id != g.user.id:
-        return error("You can flag people on your own profiles", 403)
-    if g.user.role == "shelter_coordinator" and profile.shelter_id != g.user.shelter_id:
-        return error("This resident is not at your shelter", 403)
+    profile = None
+    if data.get("profile_id"):
+        profile = db.session.get(Profile, int(data.get("profile_id")))
+        if not profile:
+            return error("That person is not registered", 400)
+        if g.user.role == "caregiver" and profile.owner_user_id != g.user.id:
+            return error("You can flag people on your own profiles", 403)
+        if g.user.role == "shelter_coordinator" and profile.shelter_id != g.user.shelter_id:
+            return error("This resident is not at your shelter", 403)
+    person = (data.get("person_description") or "").strip()
+    if not profile and not person:
+        return error("Say who needs support", 400)
     reason = (data.get("reason") or "").strip()
     if not reason:
-        return error("Describe the support need", 400)
+        return error("Write a short description of the case", 400)
+    signs = data.get("signs") or []
+    if isinstance(signs, str):
+        signs = [part.strip() for part in signs.split("·") if part.strip()]
+    shelter_id = data.get("shelter_id") or (profile.shelter_id if profile else None) or g.user.shelter_id
     item = SupportFlag(
-        profile_id=profile.id,
+        profile_id=profile.id if profile else None,
+        person_description=person or None,
+        shelter_id=int(shelter_id) if shelter_id else None,
+        signs=" · ".join(signs) or None,
         flagged_by=g.user.id,
         reason=reason,
-        includes_bullying=str(data.get("includes_bullying", "")).lower() in {"1", "true", "yes", "on"},
+        includes_bullying=str(data.get("includes_bullying", "")).lower() in {"1", "true", "yes", "on"}
+        or any("ullying" in sign for sign in signs),
     )
     db.session.add(item)
     db.session.commit()

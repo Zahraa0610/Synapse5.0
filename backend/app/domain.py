@@ -513,10 +513,11 @@ def distribution():
 def support_counts():
     rows = {}
     for flag in SupportFlag.query.all():
-        profile = db.session.get(Profile, flag.profile_id)
-        if not profile or not profile.shelter_id:
+        profile = db.session.get(Profile, flag.profile_id) if flag.profile_id else None
+        shelter_id = flag.shelter_id or (profile.shelter_id if profile else None)
+        if not shelter_id:
             continue
-        shelter = db.session.get(Shelter, profile.shelter_id)
+        shelter = db.session.get(Shelter, shelter_id)
         bucket = rows.setdefault(
             shelter.id,
             {"shelter_id": shelter.id, "shelter_name": shelter.name, "region": shelter.region, "open": 0, "total": 0},
