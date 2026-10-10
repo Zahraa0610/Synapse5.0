@@ -28,13 +28,8 @@ def _own(profile):
 @login_required()
 def care(profile_id):
     profile = db.session.get(Profile, profile_id)
-    if not _own(profile) and g.user.role not in {"shelter_coordinator", "doctor", "nurse"}:
-        return error("You do not have access to this care record", 403)
-    if g.user.role == "shelter_coordinator" and profile.shelter_id != g.user.shelter_id:
-        return error("You do not have access to this care record", 403)
     from .domain import can_view_passport
-
-    if g.user.role in {"doctor", "nurse"} and not can_view_passport(g.user, profile):
+    if not profile or not can_view_passport(g.user, profile):
         return error("This patient has not granted you access", 403)
     return jsonify(_care_payload(profile))
 

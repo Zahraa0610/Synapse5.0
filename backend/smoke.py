@@ -1,6 +1,16 @@
 from app import create_app
 
-app = create_app()
+import tempfile
+from pathlib import Path
+
+temporary = tempfile.TemporaryDirectory()
+app = create_app({"AUTO_MIGRATE": True, "SEED_DEMO": True, "SQLALCHEMY_DATABASE_URI": "sqlite:///" + str(Path(temporary.name) / "smoke.db"), "UPLOAD_FOLDER": str(Path(temporary.name) / "uploads")})
+from app.extensions import db
+from app.models import User
+with app.app_context():
+    # Explicit synthetic fixture authorization; production users are never auto-approved.
+    User.query.filter_by(email="jad@maak.test").first().verification_status = "approved"
+    db.session.commit()
 client = app.test_client()
 
 
@@ -20,7 +30,7 @@ def main():
     volunteer = login("rana@maak.test")
     ngo = login("ngo@maak.test")
     phone = client.post("/api/auth/login", json={"phone": "+96170111001", "code": "000000"})
-    assert phone.status_code == 200
+    assert phone.status_code == 503
 
     home = client.get("/api/home", headers=rania).json
     assert any(profile["full_name"] == "Salma Khoury" for profile in home["profiles"])
@@ -95,4 +105,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    finally:
+        with app.app_context():
+            db.session.remove()
+            db.engine.dispose()
+        temporary.cleanup()

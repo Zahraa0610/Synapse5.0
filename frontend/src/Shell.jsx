@@ -121,7 +121,7 @@ export default function Shell({ children }) {
           </NavLink>
         ))}
         <div style={{ marginTop: "auto" }} />
-        <button className="linkish" type="button" onClick={() => { logout(); navigate("/login"); }}>{t("Sign out")}</button>
+        <button className="linkish" type="button" onClick={async () => { try { await logout(); navigate("/login"); } catch (err) { window.alert(err.message); } }}>{t("Sign out")}</button>
       </aside>
       <main className="desk-main">
         <div className="desk-top">
@@ -175,6 +175,6 @@ export function Guard({ children }) {
 export function Guest({ children }) {
   const { user, ready } = useAuth();
   if (!ready) return <div className="app-loading">Ma'ak</div>;
-  if (user) return <Navigate to={homeFor(user.role)} replace />;
+  if (user) return <Navigate to={user.requested_role ? "/me" : homeFor(user.role)} replace />;
   return children;
 }

@@ -6,4 +6,12 @@ __pycache__/
 venv/
 backend/maak.db
 backend/uploads/
+backend/private_credentials/
+*.db
+*.db-wal
+*.db-shm
+.env
+.env.*
+!.env.example
+/tmp/
 .DS_Store

@@ -16,6 +16,7 @@ class User(db.Model):
     email = db.Column(db.String(160), unique=True)
     password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(40), nullable=False)
+    requested_role = db.Column(db.String(40))
     specialty = db.Column(db.String(120))
     license_number = db.Column(db.String(80))
     license_body = db.Column(db.String(160))
@@ -350,3 +351,40 @@ class CriticalityReview(db.Model):
     classification = db.Column(db.String(20), nullable=False)
     note = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
+
+
+class AuthSession(db.Model):
+    __tablename__ = "auth_sessions"
+    id = db.Column(db.String(64), primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    revoked = db.Column(db.Boolean, nullable=False, default=False)
+
+
+class Credential(db.Model):
+    __tablename__ = "credentials"
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    filename = db.Column(db.String(255), nullable=False)
+    stored_name = db.Column(db.String(255), nullable=False, unique=True)
+    mime_type = db.Column(db.String(120), nullable=False)
+    document_kind = db.Column(db.String(20), nullable=False, default="identity")
+    status = db.Column(db.String(20), nullable=False, default="pending")
+    reviewer_id = db.Column(db.Integer, db.ForeignKey("users.id"))
+    review_note = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, nullable=False, default=utcnow)
+
+
+class Organization(db.Model):
+    __tablename__ = "organizations"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(160), nullable=False, unique=True)
+    kind = db.Column(db.String(40), nullable=False)
+
+
+class OrganizationMember(db.Model):
+    __tablename__ = "organization_members"
+    __table_args__ = (db.UniqueConstraint("organization_id", "user_id"),)
+    id = db.Column(db.Integer, primary_key=True)
+    organization_id = db.Column(db.Integer, db.ForeignKey("organizations.id"), nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)

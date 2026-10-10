@@ -1,18 +1,22 @@
-import { Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 import { EmergencyPage, LandingPage, LoginPage, PublicEmergencyPage, RegisterPage } from "./AuthPages";
 import { DoctorPage, MinistryPage, NgoPage } from "./DeskPages";
 import { CarePage, HomePage, PassportPage, ProfilePage, RequestsPage } from "./PatientPages";
 import { ShelterPage } from "./ShelterPages";
 import Shell from "./Shell";
 import { DonorPage, VolunteerPage } from "./VolunteerPages";
-import { homeFor } from "./api";
+import { canVisit, homeFor } from "./api";
 import { useAuth } from "./context";
 import { Guest } from "./Shell";
 
 function Protected() {
   const { user, ready } = useAuth();
+  const { pathname } = useLocation();
   if (!ready) return <div className="app-loading">Ma'ak</div>;
   if (!user) return <Navigate to="/login" replace />;
+  if (!canVisit(user, pathname)) {
+    return <Navigate to={user.requested_role || user.verification_status !== "approved" && ["doctor", "nurse", "psychologist", "shelter_coordinator", "ministry", "ngo"].includes(user.role) ? "/me" : homeFor(user.role)} replace />;
+  }
   return (
     <Shell>
       <Outlet />

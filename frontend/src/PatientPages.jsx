@@ -647,7 +647,9 @@ function PersonSelect({ profiles, value, onChange }) {
 }
 
 export function ProfilePage() {
-  const { user, logout } = useAuth();
+  const { user, logout, refresh } = useAuth();
+  const [error, setError] = useState("");
+  const [documentKind, setDocumentKind] = useState("identity");
   const { t } = useI18n();
   const navigate = useNavigate();
   return (
@@ -656,10 +658,22 @@ export function ProfilePage() {
       <div className="card stack">
         <div className="spread"><span>{t("Email")}</span><span>{user.email}</span></div>
         <div className="spread"><span>{t("Phone number")}</span><span>{user.phone}</span></div>
-        <div className="spread"><span>Role</span><span>{user.role}</span></div>
+        <div className="spread"><span>Role</span><span>{user.role}{user.requested_role ? ` - Requested: ${user.requested_role}` : ""}</span></div>
         <div className="spread"><span>{t("Status")}</span><Pill value={user.verification_status}>{user.verification_status}</Pill></div>
       </div>
-      <Button ghost onClick={() => { logout(); navigate("/login"); }}>Sign out</Button>
+      <ErrorText>{error}</ErrorText>
+      {(user.requested_role || user.verification_status !== "approved" && ["doctor", "nurse", "psychologist", "ministry", "ngo", "shelter_coordinator"].includes(user.role)) && <div className="card stack">
+        <p>Privileged access awaits manual authorization. Submit or replace your identity or professional document.</p>
+        <select value={documentKind} onChange={event => setDocumentKind(event.target.value)}><option value="identity">National ID or passport</option><option value="professional">Professional credential</option><option value="practice">Practice license (optional)</option></select>
+        <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" onChange={async (event) => {
+          if (!event.target.files?.[0]) return;
+          const body = new FormData(); body.append("file", event.target.files[0]);
+          body.append("document_kind", documentKind);
+          try { const data = await api("/me/verification-file", { method: "POST", body }); refresh(data.user); setError(""); }
+          catch (err) { setError(err.message); }
+        }} />
+      </div>}
+      <Button ghost onClick={async () => { try { await logout(); navigate("/login"); } catch (err) { setError(err.message); } }}>Sign out</Button>
     </div>
   );
 }

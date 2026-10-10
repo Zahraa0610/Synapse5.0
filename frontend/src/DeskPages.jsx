@@ -446,10 +446,12 @@ function MinistryReports({ data, queue, reload }) {
         <h3>Verification queue</h3>
         {(queue?.users || []).map((person) => (
           <div className="row" key={person.id}>
-            <div><strong>{person.full_name}</strong><div className="small muted">{person.role} · {person.license_number} · {person.license_body}</div></div>
+            <div><strong>{person.full_name}</strong><div className="small muted">{person.requested_role || person.role} · {person.license_number} · {person.license_body}</div>
+              {(person.credentials || []).map((document) => <button key={document.id} className="text-btn" type="button" onClick={async () => window.open(await fileUrl(`/credentials/${document.id}/file`), "_blank")}>{document.document_kind}: {document.filename}</button>)}
+            </div>
             <div className="inline">
               <Pill value={person.verification_status}>{person.verification_status}</Pill>
-              <Button type="button" onClick={async () => { await api(`/users/${person.id}/verification`, { method: "PATCH", body: JSON.stringify({ status: "approved" }) }); reload(); }}>Approve</Button>
+              <VerificationReview person={person} reload={reload} />
             </div>
           </div>
         ))}
@@ -457,6 +459,21 @@ function MinistryReports({ data, queue, reload }) {
       </div>
     </div>
   );
+}
+
+function VerificationReview({ person, reload }) {
+  const [error, setError] = useState("");
+  const [shelterId, setShelterId] = useState("");
+  const shelters = useData(person.requested_role === "shelter_coordinator" ? "/shelters" : null);
+  async function review(status) {
+    try { await api(`/users/${person.id}/verification`, { method: "PATCH", body: JSON.stringify({ status, shelter_id: shelterId || null, note: "Manual review by authorized Ministry reviewer" }) }); await reload(); setError(""); }
+    catch (err) { setError(err.message); }
+  }
+  return <div className="stack">
+    {person.requested_role === "shelter_coordinator" && <select value={shelterId} onChange={event => setShelterId(event.target.value)}><option value="">Assign shelter</option>{(shelters.data?.shelters || []).map(shelter => <option key={shelter.id} value={shelter.id}>{shelter.name}</option>)}</select>}
+    <div className="inline"><Button type="button" onClick={() => review("approved")}>Approve</Button><Button ghost type="button" onClick={() => review("rejected")}>Reject</Button></div>
+    <ErrorText>{error}</ErrorText>
+  </div>;
 }
 
 export function NgoPage() {

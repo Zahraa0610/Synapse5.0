@@ -211,6 +211,12 @@ export function AuthProvider({ children }) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    const expired = () => setUser(null);
+    window.addEventListener("maak-session-expired", expired);
+    return () => window.removeEventListener("maak-session-expired", expired);
+  }, []);
+
+  useEffect(() => {
     if (!getToken()) {
       setReady(true);
       return;
@@ -238,7 +244,8 @@ export function AuthProvider({ children }) {
     return data.user;
   }
 
-  function logout() {
+  async function logout() {
+    await api("/auth/logout", { method: "POST" });
     setToken(null);
     setUser(null);
   }

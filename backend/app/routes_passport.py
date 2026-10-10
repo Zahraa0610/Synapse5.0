@@ -1,6 +1,6 @@
 import os
 
-from flask import g, jsonify, send_from_directory
+from flask import current_app, g, jsonify, send_from_directory
 from flask import Blueprint
 
 from .domain import (
@@ -56,7 +56,7 @@ def _entry_json(entry):
 
 
 def _owned(profile):
-    return profile.owner_user_id == g.user.id
+    return profile is not None and profile.owner_user_id == g.user.id
 
 
 @passport_bp.get("/home")
@@ -290,7 +290,7 @@ def delete_entry(entry_id):
     entry = db.session.get(MedicalEntry, entry_id)
     if not entry:
         return error("Record not found", 404)
-    if entry.author_user_id != g.user.id:
+    if entry.author_user_id != g.user.id or not can_view_passport(g.user, db.session.get(Profile, entry.profile_id)):
         return error("You can remove records you wrote", 403)
     Attachment.query.filter_by(entry_id=entry.id).delete()
     db.session.delete(entry)
@@ -337,7 +337,7 @@ def download_attachment(attachment_id):
     profile = db.session.get(Profile, entry.profile_id)
     if not can_view_passport(g.user, profile):
         return error("You do not have access to this file", 403)
-    folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "uploads"))
+    folder = current_app.config["UPLOAD_FOLDER"]
     return send_from_directory(folder, attachment.stored_name, download_name=attachment.filename)
 
 

@@ -60,6 +60,7 @@ def user_public(user):
         "phone": user.phone,
         "email": user.email,
         "role": user.role,
+        "requested_role": user.requested_role,
         "specialty": user.specialty,
         "license_number": user.license_number,
         "license_body": user.license_body,
@@ -203,6 +204,8 @@ def roster_row(profile):
 
 
 def can_view_passport(user, profile):
+    if not profile:
+        return False
     if user.role in {"ministry", "ngo", "donor"}:
         return False
     if profile.owner_user_id and profile.owner_user_id == user.id:

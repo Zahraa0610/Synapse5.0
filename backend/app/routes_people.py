@@ -210,11 +210,16 @@ def update_transport(item_id):
     item = db.session.get(TransportRequest, item_id)
     if not item:
         return error("Request not found", 404)
+    profile = db.session.get(Profile, item.profile_id)
+    if g.user.role == "shelter_coordinator" and (not profile or profile.shelter_id != g.user.shelter_id):
+        return error("This request is for another shelter", 403)
     status = (payload().get("status") or "").strip()
     if status not in {"accepted", "completed", "cancelled"}:
         return error("Choose a status", 400)
     provider = g.user.role == "ngo" or (g.user.role == "volunteer" and g.user.helper_type == "transport")
     owner = _owns_transport(item)
+    if status == "completed" and provider and item.provider_user_id != g.user.id:
+        return error("Only the assigned provider can complete this request", 403)
     if status in {"accepted", "completed"} and not provider and g.user.role != "shelter_coordinator":
         return error("A transport provider accepts this request", 403)
     if status == "cancelled" and not owner and not provider:
@@ -287,6 +292,9 @@ def update_flag(item_id):
     item = db.session.get(SupportFlag, item_id)
     if not item:
         return error("Flag not found", 404)
+    profile = db.session.get(Profile, item.profile_id)
+    if not profile or (g.user.role == "caregiver" and profile.owner_user_id != g.user.id) or (g.user.role == "shelter_coordinator" and profile.shelter_id != g.user.shelter_id):
+        return error("You do not have access to this flag", 403)
     status = (payload().get("status") or "").strip()
     if status not in {"open", "acknowledged", "closed"}:
         return error("Choose a status", 400)

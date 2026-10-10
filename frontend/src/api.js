@@ -1,4 +1,5 @@
 const TOKEN_KEY = "maak_token";
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
 
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY);
@@ -16,9 +17,13 @@ export async function api(path, options = {}) {
   if (options.body && !(options.body instanceof FormData) && !headers["Content-Type"]) {
     headers["Content-Type"] = "application/json";
   }
-  const response = await fetch(`/api${path}`, { ...options, headers });
+  const response = await fetch(`${API_BASE}${path}`, { ...options, headers });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
+    if (response.status === 401 && token) {
+      setToken(null);
+      window.dispatchEvent(new Event("maak-session-expired"));
+    }
     const error = new Error(data.error || "Something went wrong");
     error.status = response.status;
     throw error;
@@ -27,10 +32,13 @@ export async function api(path, options = {}) {
 }
 
 export async function fileUrl(path) {
-  const response = await fetch(`/api${path}`, {
+  const response = await fetch(`${API_BASE}${path}`, {
     headers: { Authorization: `Bearer ${getToken()}` },
   });
-  if (!response.ok) throw new Error("Could not open the file");
+  if (!response.ok) {
+    if (response.status === 401) { setToken(null); window.dispatchEvent(new Event("maak-session-expired")); }
+    throw new Error("Could not open the file");
+  }
   return URL.createObjectURL(await response.blob());
 }
 
@@ -54,6 +62,14 @@ export function homeFor(role) {
   if (role === "ministry") return "/ministry";
   if (role === "ngo") return "/ngo";
   return "/home";
+}
+
+export function canVisit(user, pathname) {
+  if (!user) return false;
+  if (pathname === "/me") return true;
+  if (["doctor", "nurse", "psychologist", "shelter_coordinator", "ministry", "ngo"].includes(user.role) && user.verification_status !== "approved") return false;
+  const routes = { caregiver: ["/home", "/passport", "/care", "/requests"], volunteer: ["/volunteer"], donor: ["/donor"], doctor: ["/doctor"], nurse: ["/doctor"], psychologist: ["/doctor"], shelter_coordinator: ["/shelter"], ministry: ["/ministry"], ngo: ["/ngo"] };
+  return (routes[user.role] || []).some((prefix) => pathname === prefix || pathname.startsWith(prefix + "/"));
 }
 
 export function toneFor(status) {

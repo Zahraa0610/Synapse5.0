@@ -17,6 +17,7 @@ const ROLES = [
   ["ngo", "NGO"],
 ];
 const CLINICAL = new Set(["doctor", "nurse", "psychologist"]);
+const VERIFIED = new Set([...CLINICAL, "ministry", "ngo", "shelter_coordinator"]);
 const HELPERS = [
   ["general", "General help"],
   ["medical_student", "Medical student"],
@@ -47,25 +48,27 @@ export function LoginPage() {
   const { t } = useI18n();
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [mode, setMode] = useState("phone");
+  const [mode, setMode] = useState("email");
   const [phone, setPhone] = useState("+961");
   const [code, setCode] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [hint, setHint] = useState("");
+  const [busy, setBusy] = useState(false);
 
   async function submit(event) {
     event.preventDefault();
     setError("");
+    setBusy(true);
     try {
       const user = mode === "phone"
         ? await login({ phone, code })
         : await login({ email, password });
-      navigate(homeFor(user.role));
+      navigate(user.requested_role ? "/me" : homeFor(user.role));
     } catch (err) {
       setError(err.message);
-    }
+    } finally { setBusy(false); }
   }
 
   return (
@@ -83,8 +86,8 @@ export function LoginPage() {
         {mode === "phone" ? (
           <>
             <Field label="Phone number"><input value={phone} onChange={(e) => setPhone(e.target.value)} /></Field>
-            <Field label="Demo code"><input inputMode="numeric" maxLength={6} value={code} onChange={(e) => setCode(e.target.value)} placeholder="000000" /></Field>
-            <button type="button" className="text-btn" onClick={() => setHint("Demo code 000000")}>{t("Send by WhatsApp")}</button>
+            <Field label="Verification code"><input inputMode="numeric" maxLength={6} value={code} onChange={(e) => setCode(e.target.value)} /></Field>
+            <button type="button" className="text-btn" onClick={async () => { try { await api("/auth/phone-code", { method: "POST" }); } catch (err) { setHint(err.message); } }}>{t("Send by WhatsApp")}</button>
             {hint && <p className="small muted">{hint}</p>}
           </>
         ) : (
@@ -94,7 +97,7 @@ export function LoginPage() {
           </>
         )}
         <ErrorText>{error}</ErrorText>
-        <Button className="full" type="submit">Sign in</Button>
+        <Button className="full" type="submit" disabled={busy}>{busy ? "Signing in…" : "Sign in"}</Button>
         <Link to="/register">{t("Create an account")}</Link>
         <Link to="/emergency">{t("Emergency aid works without signing in")}</Link>
       </form>
@@ -104,7 +107,7 @@ export function LoginPage() {
 
 export function RegisterPage() {
   const { t } = useI18n();
-  const { register } = useAuth();
+  const { register, refresh } = useAuth();
   const navigate = useNavigate();
   const [step, setStep] = useState("account");
   const [shelters, setShelters] = useState([]);
@@ -123,7 +126,9 @@ export function RegisterPage() {
     shelter_id: "",
   });
   const [file, setFile] = useState(null);
+  const [identityFile, setIdentityFile] = useState(null);
   const [captured, setCaptured] = useState(false);
+  const [busy, setBusy] = useState(false);
   const set = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
 
   async function ensureShelters() {
@@ -135,6 +140,7 @@ export function RegisterPage() {
   async function nextAccount(event) {
     event.preventDefault();
     setError("");
+    if (!form.email || form.password.length < 10) { setError("Enter an email and a password of at least 10 characters."); return; }
     if (form.role === "shelter_coordinator" && !shelters.length) {
       try {
         const data = await api("/shelters");
@@ -143,29 +149,32 @@ export function RegisterPage() {
         setShelters([]);
       }
     }
-    if (CLINICAL.has(form.role)) setStep("verify");
-    else setStep("review");
+    setStep("verify");
   }
 
   async function finish(event) {
     event.preventDefault();
     setError("");
+    if (VERIFIED.has(form.role) && (!identityFile || CLINICAL.has(form.role) && !file)) { setError("Submit identity and required professional documents for manual review."); return; }
+    setBusy(true);
     try {
       const user = await register({
         ...form,
         shelter_id: form.shelter_id || null,
         phone: form.phone === "+961" ? null : form.phone,
       });
-      if (file) {
+      for (const [document, kind] of [[identityFile, "identity"], [file, "professional"]]) {
+        if (!document) continue;
         const body = new FormData();
-        body.append("file", file);
+        body.append("file", document);
+        body.append("document_kind", kind);
         const updated = await api("/me/verification-file", { method: "POST", body });
-        user.verification_status = updated.user.verification_status;
+        refresh(updated.user);
       }
-      navigate(homeFor(user.role));
+      navigate(user.requested_role ? "/me" : homeFor(user.role));
     } catch (err) {
       setError(err.message);
-    }
+    } finally { setBusy(false); }
   }
 
   if (step === "scan") {
@@ -182,7 +191,7 @@ export function RegisterPage() {
           </div>
         </div>
         <Field label="Upload a document"><input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" onChange={(e) => setFile(e.target.files?.[0] || null)} /></Field>
-        <Button type="button" onClick={() => { setCaptured(true); setStep("review"); }}>{t("Card detected — hold still")}</Button>
+        <Button type="button" disabled={!file} onClick={() => { setCaptured(true); setStep("review"); }}>Use selected document</Button>
       </div>
     );
   }
@@ -194,7 +203,7 @@ export function RegisterPage() {
         {step === "account" && (
           <>
             <div>
-              <p className="small muted">{CLINICAL.has(form.role) ? "Step 1 of 3" : "Step 1 of 2"}</p>
+              <p className="small muted">Step 1 of 3</p>
               <h1>{t("Create your account")}</h1>
             </div>
             <div>
@@ -207,8 +216,8 @@ export function RegisterPage() {
             </div>
             <Field label="Full name"><input value={form.full_name} onChange={set("full_name")} required /></Field>
             <Field label="Phone number"><input value={form.phone} onChange={set("phone")} /></Field>
-            <Field label="Email"><input type="email" value={form.email} onChange={set("email")} /></Field>
-            <Field label="Password"><input type="password" value={form.password} onChange={set("password")} required /></Field>
+            <Field label="Email"><input type="email" value={form.email} onChange={set("email")} required /></Field>
+            <Field label="Password"><input type="password" value={form.password} onChange={set("password")} minLength={10} required /></Field>
             {form.role === "volunteer" && (
               <Field label="Helper type">
                 <Select value={form.helper_type} onChange={set("helper_type")} options={HELPERS.map(([value, label]) => ({ value, label }))} />
@@ -232,11 +241,15 @@ export function RegisterPage() {
               <p className="small muted">Step 2 of 3</p>
               <h1>{t("Verify who you are")}</h1>
             </div>
+            <Field label="National ID or passport"><input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" onChange={(event) => setIdentityFile(event.target.files?.[0] || null)} /></Field>
+            {!VERIFIED.has(form.role) && <p className="small muted">Identity review is optional for this non-privileged role.</p>}
+            {CLINICAL.has(form.role) && <>
             <Field label="Specialty"><input value={form.specialty} onChange={set("specialty")} /></Field>
             <Field label="License number"><input value={form.license_number} onChange={set("license_number")} /></Field>
             <Field label="Licensing body"><input value={form.license_body} onChange={set("license_body")} /></Field>
             <Field label="License expires"><input type="date" value={form.license_expires} onChange={set("license_expires")} /></Field>
             <Button type="button" ghost onClick={() => setStep("scan")}>{t("Scan license card")}</Button>
+            </>}
             <div className="action-row">
               <Button type="button" ghost onClick={() => setStep("account")}>{t("Back")}</Button>
               <Button type="button" onClick={() => setStep("review")}>{t("Submit for review")}</Button>
@@ -246,7 +259,7 @@ export function RegisterPage() {
         {step === "review" && (
           <>
             <div>
-              <p className="small muted">{CLINICAL.has(form.role) ? "Step 3 of 3" : "Step 2 of 2"}</p>
+              <p className="small muted">Step 3 of 3</p>
               <h1>{t("Check your details")}</h1>
             </div>
             <div className="card stack">
@@ -255,16 +268,16 @@ export function RegisterPage() {
               {form.license_number && <span>{t("License number")}: {form.license_number}</span>}
               {form.license_body && <span>{form.license_body}</span>}
               <div className="stack">
-                <span><Pill value="approved" /> {t("Account created")}</span>
-                {CLINICAL.has(form.role) && <span><Pill value="documents_received" /> {t("Documents received")}</span>}
-                {CLINICAL.has(form.role) && <span><Pill value="checking" /> {t("Checking with the licensing body")}</span>}
-                {captured && <span className="small muted">Card capture recorded for a human reviewer.</span>}
+                <span><Pill value="pending" /> Ready to submit</span>
+                {VERIFIED.has(form.role) && <span><Pill value="pending" /> {file ? "Document selected for submission" : "Document required before submission"}</span>}
+                {VERIFIED.has(form.role) && <span><Pill value="checking" /> Pending manual review after submission</span>}
+                {captured && <span className="small muted">Selected document will be submitted for manual review.</span>}
               </div>
             </div>
             <ErrorText>{error}</ErrorText>
             <div className="action-row">
-              <Button type="button" ghost onClick={() => setStep(CLINICAL.has(form.role) ? "verify" : "account")}>{t("Back")}</Button>
-              <Button type="submit">{t("Confirm and continue")}</Button>
+              <Button type="button" ghost onClick={() => setStep("verify")}>{t("Back")}</Button>
+              <Button type="submit" disabled={busy}>{busy ? "Submitting…" : t("Confirm and continue")}</Button>
             </div>
           </>
         )}
