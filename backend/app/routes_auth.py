@@ -79,6 +79,22 @@ def register():
         car_wheelchair=as_bool(data.get("car_wheelchair")) if role == "volunteer" and offers_driving else False,
     )
     db.session.add(user)
+    db.session.flush()
+    if role == "caregiver":
+        # Every family account starts with a health passport for the person themselves.
+        import secrets
+
+        from .models import Profile
+
+        db.session.add(
+            Profile(
+                owner_user_id=user.id,
+                full_name=full_name,
+                relationship="self",
+                shelter_id=user.shelter_id,
+                emergency_token=secrets.token_urlsafe(8),
+            )
+        )
     db.session.commit()
     return jsonify({"token": token_for(user), "user": user_public(user)}), 201
 

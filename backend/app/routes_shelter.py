@@ -393,3 +393,38 @@ def resident(profile_id):
     if not profile or profile.shelter_id != g.user.shelter_id:
         return error("This resident is not at your shelter", 404)
     return jsonify({"resident": roster_row(profile), "limited": True, "passport": None})
+
+
+@shelter_bp.post("/shelters")
+@login_required({"ministry"}, approved=True)
+def register_shelter():
+    """The Ministry registers a new shelter (school, center...)."""
+    from .routes_people import REGIONS
+
+    data = payload()
+    name = (data.get("name") or "").strip()
+    region = (data.get("region") or "").strip()
+    if not name or region not in REGIONS:
+        return error("Enter the shelter name and choose its region", 400)
+    if Shelter.query.filter(Shelter.name.ilike(name)).first():
+        return error("A shelter with this name is already registered", 409)
+
+    def number(key):
+        value = str(data.get(key) or "0").strip()
+        return int(value) if value.isdigit() else 0
+
+    shelter = Shelter(
+        name=name,
+        region=region,
+        kind=(data.get("kind") or "center").strip(),
+        address=(data.get("address") or "").strip() or None,
+        capacity=number("capacity"),
+        occupancy=number("occupancy"),
+        accessible=str(data.get("accessible", "")).lower() in {"1", "true", "yes", "on"},
+        accessible_spaces=number("accessible_spaces"),
+        has_backup_power=str(data.get("has_backup_power", "")).lower() in {"1", "true", "yes", "on"},
+        electricity_hours=number("electricity_hours"),
+    )
+    db.session.add(shelter)
+    db.session.commit()
+    return jsonify({"shelter": shelter_public(shelter)}), 201
