@@ -47,7 +47,7 @@ DEMO_PASSWORD = "maak1234"
 
 # Accounts shown as quick-login buttons in demo mode only.
 DEMO_ACCOUNTS = [
-    ("Family", "rania@maak.test"),
+    ("User / caregiver", "rania@maak.test"),
     ("Family (renting)", "hussein@maak.test"),
     ("Volunteer", "rana@maak.test"),
     ("Doctor", "nadine@maak.test"),

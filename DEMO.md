@@ -28,7 +28,7 @@ npm run dev
 "When families are displaced, their medical history, medicines and care get lost. Ma'ak keeps them
 connected to shelters, volunteers, doctors, donors and the Ministry."
 
-**2. A family — Rania (phone view, 60 s)** — click **Family**
+**2. A family — Rania (phone view, 60 s)** — click **User / caregiver**
 - Home: her family (her mother Salma is marked *Critical*), and nearby doctor visits.
 - **Health passport**: Salma's ID (MAK-…), conditions, records marked doctor-entered or
   patient-entered. Tap **Save on this phone** → the emergency QR card works offline.
