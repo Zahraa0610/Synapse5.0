@@ -50,7 +50,6 @@ DEMO_ACCOUNTS = [
     ("Family", "rania@maak.test"),
     ("Family (renting)", "hussein@maak.test"),
     ("Volunteer", "rana@maak.test"),
-    ("Driver", "karim@maak.test"),
     ("Doctor", "nadine@maak.test"),
     ("Shelter", "jad@maak.test"),
     ("Donor", "lina@maak.test"),
@@ -121,13 +120,18 @@ def load_demo_data():
         verification_status="not_required",
         id_document_type="lebanese_id",
         id_document_number="LB-00451287",
+        # She also ticked "I can drive" at sign-up, so she can take ride requests.
+        offers_driving=True,
+        car_model="Hyundai i10 (grey)",
+        car_plate="M 482913",
+        car_seats=3,
     )
     user(
         "Karim Daoud",
         "karim@maak.test",
         "+96170111003",
         "volunteer",
-        helper_type="transport",
+        helper_type="general",
         id_document_type="passport",
         id_document_number="RL1234567",
         offers_driving=True,
