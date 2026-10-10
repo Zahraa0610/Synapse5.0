@@ -24,7 +24,7 @@ export async function api(path, options = {}) {
       setToken(null);
       window.dispatchEvent(new Event("maak-session-expired"));
     }
-    const error = new Error(data.error || "Something went wrong");
+    const error = new Error(data.error || (path === "/auth/logout" && response.status === 404 ? "The running backend is outdated. Restart the updated backend before signing out." : "Something went wrong"));
     error.status = response.status;
     throw error;
   }
@@ -40,6 +40,16 @@ export async function fileUrl(path) {
     throw new Error("Could not open the file");
   }
   return URL.createObjectURL(await response.blob());
+}
+
+export async function logoutSession() {
+  try {
+    await api("/auth/logout", { method: "POST" });
+  } catch (error) {
+    // A 401 means this session is already expired or revoked.
+    if (error.status !== 401) throw error;
+  }
+  setToken(null);
 }
 
 export const DEMO_ACCOUNTS = [

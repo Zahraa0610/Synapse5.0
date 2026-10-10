@@ -8,7 +8,7 @@ const values = new Map();
 globalThis.localStorage = {getItem:key=>values.get(key)||null, setItem:(key,value)=>values.set(key,value), removeItem:key=>values.delete(key)};
 let expired = false;
 globalThis.window = {dispatchEvent:event=>{ if(event.type === "maak-session-expired") expired=true; }};
-const {api, canVisit, homeFor, getToken, setToken} = await import("data:text/javascript;base64," + Buffer.from(compiled.code).toString("base64"));
+const {api, canVisit, homeFor, getToken, setToken, logoutSession} = await import("data:text/javascript;base64," + Buffer.from(compiled.code).toString("base64"));
 for (const [role, path] of [["caregiver","/home"],["volunteer","/volunteer"],["donor","/donor"],["doctor","/doctor"],["nurse","/doctor"],["psychologist","/doctor"],["shelter_coordinator","/shelter"],["ngo","/ngo"],["ministry","/ministry"]]) {
   const user = {role, verification_status:"approved"};
   assert.equal(homeFor(role),path);
@@ -30,4 +30,14 @@ globalThis.fetch = async()=>({ok:false,status:401,json:async()=>({error:"Sign in
 await assert.rejects(api("/auth/me"),/Sign in required/);
 assert.equal(getToken(),null);
 assert.equal(expired,true);
+setToken("expired-session");
+await logoutSession();
+assert.equal(getToken(),null);
+setToken("unrevoked-session");
+globalThis.fetch = async()=>({ok:false,status:404,json:async()=>({})});
+await assert.rejects(logoutSession(),/running backend is outdated/);
+assert.equal(getToken(),"unrevoked-session");
+globalThis.fetch = async()=>({ok:true,json:async()=>({ok:true})});
+await logoutSession();
+assert.equal(getToken(),null);
 console.log("Frontend role routing, API configuration, bearer authentication and expiration checks passed");

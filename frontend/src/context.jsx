@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { api, getToken, setToken } from "./api";
+import { api, getToken, logoutSession, setToken } from "./api";
 
 const ar = {
   "Ma'ak": "معك",
@@ -245,8 +245,7 @@ export function AuthProvider({ children }) {
   }
 
   async function logout() {
-    await api("/auth/logout", { method: "POST" });
-    setToken(null);
+    await logoutSession();
     setUser(null);
   }
 

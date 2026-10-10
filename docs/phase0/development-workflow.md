@@ -37,6 +37,24 @@ Optional demo fixtures: from backend, run `..\.venv\bin\python.exe -m flask --ap
 ## Environment
 MAAK_SECRET: private stable signing key, at least 32 characters in production. Without it the ephemeral development key changes on restart. MAAK_DATABASE_URL: SQLAlchemy SQLite URL (default separate maak-dev.db). MAAK_CREDENTIAL_FOLDER: private credential directory. MAAK_CORS_ORIGINS: comma-separated exact browser origins, default localhost:5173. MAAK_ENV=production enables secret enforcement and disallows demo seeding. VITE_API_BASE_URL: frontend API URL, default /api. No SMS or licensing provider exists; phone authentication returns 503. No secrets in committed .env files.
 
+MAAK_BACKEND_URL controls the Vite development proxy target (default http://127.0.0.1:5000). An old backend returns 404 for /auth/logout; restart the updated backend or point the frontend at the updated server. Do not silently clear a still-valid session when revocation fails. An already-invalid session (401) signs out successfully.
+
+## Active isolated local stack after sign-out recovery
+
+The older server on port 5000 does not register /auth/logout. Multiple Python servers were found; none was stopped. A consistent copy of the original DB was migrated at backend/maak-logout-development.db and started on port 5001. Frontend on localhost:5173 proxies to it. Existing account records are preserved in this copy; new development edits affect the copy. Old JWTs require signing in again. A synthetic integration account was created only in the development copy to verify real HTTP logout/revocation.
+
+To restart this isolated stack, from backend:
+```powershell
+$env:MAAK_DATABASE_URL = 'sqlite:///' + (Join-Path (Get-Location).Path 'maak-logout-development.db')
+..\.venv\bin\python.exe -c "from app import create_app; create_app().run(host='127.0.0.1', port=5001, debug=False)"
+```
+From frontend in another terminal:
+```powershell
+$env:MAAK_BACKEND_URL = 'http://127.0.0.1:5001'
+npm.cmd run dev -- --port 5173 --strictPort
+```
+Set a private stable MAAK_SECRET before restarting if sessions must survive server restarts. Do not switch a live production database or stop unidentified processes.
+
 ## First authorized Ministry reviewer
 Register a Ministry request, upload identity evidence from account page, independently validate appointment/authority, then run:
 ```powershell

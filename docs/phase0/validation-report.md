@@ -20,6 +20,8 @@
 | Approved 57-feature map | Complete | All exact IDs 1-57 and titles mapped to code, models, gaps and phases across nine modules |
 | SMS/WhatsApp verification | Blocked | No configured provider; real requests return 503 |
 | External licensing verification | Blocked | Pending/manual review only; no automated external authority claim |
+| Reported sign-out error | Resolved on updated local stack | Old port 5000 backend returned 404 for logout. Updated port 5001 backend uses a migrated copy, with frontend localhost:5173 proxy. Real HTTP registration/me/logout/revoked-token checks passed |
+| Expired-session sign-out | Passed | Frontend regression checks accept 401 as already invalid, preserve session on 404 and clear session after successful server revocation |
 
 An initial backend check failed because Flask was absent. Declared dependencies were installed in an isolated ignored environment; later startup/tests passed. An initial expiration fixture used local rather than UTC time; corrected fixture then passed. An initial smoke run exposed a demo coordinator without explicit approval; the isolated fixture now records synthetic approval. No real medical data is emitted by tests. A Werkzeug multipart temporary-file ResourceWarning appeared during testing; the suite still passed, and no original data was used.
 
