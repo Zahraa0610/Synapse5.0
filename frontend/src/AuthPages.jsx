@@ -21,7 +21,6 @@ const HELPERS = [
   ["general", "General help"],
   ["medical_student", "Medical student"],
   ["nursing_student", "Nursing student"],
-  ["transport", "Transportation"],
   ["companion", "Hospital companion"],
 ];
 
@@ -192,7 +191,6 @@ export function RegisterPage() {
     try {
       const user = await register({
         ...form,
-        offers_driving: form.offers_driving || form.helper_type === "transport",
         shelter_id: form.shelter_id || null,
         phone: hasPhone ? verifiedPhone : null,
       });
@@ -301,9 +299,9 @@ export function RegisterPage() {
             </Field>
             <Field label="Photo of the ID (optional)"><input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" onChange={(e) => setFile(e.target.files?.[0] || null)} /></Field>
             <div className="check-group">
-              <label className="check"><input type="checkbox" checked={form.offers_driving || form.helper_type === "transport"} onChange={set("offers_driving")} /> {t("I can drive people or supplies")}</label>
+              <label className="check"><input type="checkbox" checked={form.offers_driving} onChange={set("offers_driving")} /> {t("I can drive people or supplies")}</label>
             </div>
-            {(form.offers_driving || form.helper_type === "transport") && (
+            {form.offers_driving && (
               <div className="card stack">
                 <h3>{t("Car details")}</h3>
                 <div className="grid-2">
@@ -334,7 +332,7 @@ export function RegisterPage() {
               {form.license_number && <span>{t("License number")}: {form.license_number}</span>}
               {form.license_body && <span>{form.license_body}</span>}
               {volunteer && <span>{t(form.id_document_type === "passport" ? "Passport" : "Lebanese ID")}: {form.id_document_number}</span>}
-              {volunteer && (form.offers_driving || form.helper_type === "transport") && <span>{t("Car")}: {form.car_model} · {form.car_plate}</span>}
+              {volunteer && form.offers_driving && <span>{t("Car")}: {form.car_model} · {form.car_plate}</span>}
               <div className="stack">
                 <span><Pill value="approved" /> {t("Account created")}</span>
                 {CLINICAL.has(form.role) && <span><Pill value="documents_received" /> {t("Documents received")}</span>}

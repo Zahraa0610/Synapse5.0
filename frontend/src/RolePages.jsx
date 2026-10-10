@@ -130,7 +130,7 @@ function VolunteerHeader() {
     <div className="card stack">
       <div>
         <h2>{user.full_name}</h2>
-        <p className="small muted">{[t(HELPER_LABELS[user.helper_type] || "Volunteer"), user.offers_driving ? `${t("Driver")} · ${user.car_model || ""}` : null].filter(Boolean).join(" · ")}</p>
+        <p className="small muted">{[t(HELPER_LABELS[user.helper_type] || "Volunteer"), user.offers_driving ? `${t("Can drive")}${user.car_model ? ` · ${user.car_model}` : ""}` : null].filter(Boolean).join(" · ")}</p>
       </div>
       <Note>{t("You can deliver supplies and accompany patients. This is non-medical help.")}</Note>
     </div>
