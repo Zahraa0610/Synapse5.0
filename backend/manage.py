@@ -37,6 +37,8 @@ def demo():
 def create_admin():
     from app.models import User
 
+    db.create_all()  # works on a brand-new install too
+
     name = input("Full name: ").strip()
     email = input("Email: ").strip().lower()
     password = getpass.getpass("Password (6+ characters): ")
