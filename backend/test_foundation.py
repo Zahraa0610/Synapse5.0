@@ -169,11 +169,13 @@ class FoundationTests(unittest.TestCase):
         grant=self.client.post(f"/api/profiles/{profile_id}/grants",headers=owner,json={"grantee_user_id":doctor['user']['id']})
         self.assertEqual(grant.status_code,200)
         self.assertEqual(self.client.get(path,headers=clinical).status_code,200)
+        self.assertEqual(self.client.get(f"/api/doctor/profiles/{profile_id}",headers=clinical).status_code,200)
         with self.app.app_context():
             from app.models import AccessGrant
             grant_id=AccessGrant.query.first().id
         self.assertEqual(self.client.post(f"/api/grants/{grant_id}/revoke",headers=owner).status_code,200)
         self.assertEqual(self.client.get(path,headers=clinical).status_code,403)
+        self.assertEqual(self.client.get(f"/api/doctor/profiles/{profile_id}",headers=clinical).status_code,403)
         overview=self.client.get("/api/ministry/overview",headers=ministry)
         self.assertEqual(overview.status_code,200)
         self.assertNotIn("Synthetic fixture", str(overview.json))

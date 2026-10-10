@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { api, fileUrl, formatWhen } from "./api";
 import { useAuth } from "./context";
@@ -63,6 +63,9 @@ export function DoctorPage() {
   const [error, setError] = useState("");
   const [selected, setSelected] = useState(null);
   const [chart, setChart] = useState(null);
+  const [opening, setOpening] = useState(false);
+  const chartRequest = useRef(0);
+  useEffect(() => () => { chartRequest.current += 1; }, []);
 
   async function search(event) {
     event?.preventDefault();
@@ -77,9 +80,20 @@ export function DoctorPage() {
   useEffect(() => { search(); }, []);
 
   async function openPatient(patient) {
+    if (!patient) return;
+    const request = ++chartRequest.current;
     setSelected(patient);
-    const data = await api(`/doctor/profiles/${patient.id}`);
-    setChart(data);
+    setChart(null);
+    setError("");
+    setOpening(true);
+    try {
+      const data = await api(`/doctor/profiles/${patient.id}`);
+      if (request === chartRequest.current) setChart(data);
+    } catch (err) {
+      if (request === chartRequest.current) setError(err.message);
+    } finally {
+      if (request === chartRequest.current) setOpening(false);
+    }
   }
 
   if (user.verification_status !== "approved") {
@@ -113,7 +127,7 @@ export function DoctorPage() {
         {chart && <ClinicianForm profile={chart.profile} onDone={() => openPatient(selected)} />}
       </div>
       <div className="card stack">
-        {!chart && <p className="muted">Choose a patient who has granted you access.</p>}
+        {!chart && <p className="muted">{opening ? "Opening patient records…" : "Choose a patient who has granted you access."}</p>}
         {chart && (
           <>
             <h2>{chart.profile.full_name}</h2>

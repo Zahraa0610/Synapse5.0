@@ -39,6 +39,8 @@ MAAK_SECRET: private stable signing key, at least 32 characters in production. W
 
 MAAK_BACKEND_URL controls the Vite development proxy target (default http://127.0.0.1:5000). An old backend returns 404 for /auth/logout; restart the updated backend or point the frontend at the updated server. Do not silently clear a still-valid session when revocation fails. An already-invalid session (401) signs out successfully.
 
+Vite reads MAAK_BACKEND_URL from both the process environment and ignored frontend/.env.local. Local .env.local now selects http://127.0.0.1:5001, so existing frontend servers on ports 5173 and 5174 both reach the updated isolated backend. This local environment file is not committed. Refresh/sign in again when switching from the obsolete backend; patient records still require active grants. Additional chart/doctor test records are explicitly synthetic and exist only in the development copy.
+
 ## Active isolated local stack after sign-out recovery
 
 The older server on port 5000 does not register /auth/logout. Multiple Python servers were found; none was stopped. A consistent copy of the original DB was migrated at backend/maak-logout-development.db and started on port 5001. Frontend on localhost:5173 proxies to it. Existing account records are preserved in this copy; new development edits affect the copy. Old JWTs require signing in again. A synthetic integration account was created only in the development copy to verify real HTTP logout/revocation.

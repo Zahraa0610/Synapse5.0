@@ -52,6 +52,9 @@ def main():
     )
     assert created.status_code == 201, created.json
     assert created.json["entry"]["author_type"] == "clinician"
+    chart = client.get(f"/api/doctor/profiles/{salma['id']}", headers=doctor)
+    assert chart.status_code == 200, chart.json
+    assert any(entry["id"] == created.json["entry"]["id"] for entry in chart.json["entries"])
 
     emergency = client.get(f"/api/emergency/{salma['emergency_token']}")
     assert emergency.status_code == 200
