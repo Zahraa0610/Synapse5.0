@@ -14,6 +14,7 @@ const PHONE_NAV = {
   volunteer: [
     ["/volunteer", "Tasks"],
     ["/volunteer/notices", "Notices"],
+    ["/volunteer/complaints", "Complaints"],
     ["/volunteer/support", "Support"],
     ["/me", "Profile"],
   ],

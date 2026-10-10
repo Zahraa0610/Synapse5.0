@@ -17,7 +17,7 @@ const DEVICE_KINDS = [
   { value: "other", label: "Other (write it)" },
 ];
 
-function useData(path) {
+export function useData(path) {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(Boolean(path));
@@ -599,7 +599,7 @@ export function RequestsPage() {
             <FlagForm profiles={data.profiles} onDone={reload} />
           </section>
           <section className="card stack">
-            <h3>{t("Complaints")}</h3>
+            <h3>{t("Add a complaint")}</h3>
             {data.complaints.map((item) => (
               <div className="row" key={item.id}>
                 <div><strong>{item.category}</strong><div className="small muted">{item.shelter_name} · {item.source}</div><div className="small">{item.description}</div></div>
@@ -668,27 +668,86 @@ function FlagForm({ profiles, onDone }) {
   );
 }
 
-function ComplaintForm({ onDone, shelters }) {
-  const [form, setForm] = useState({ category: "Medication shortage", description: "", source: "direct", shelter_id: "" });
+export const COMPLAINT_TOPICS = [
+  "Medication shortage",
+  "Food",
+  "Hygiene",
+  "Safety",
+  "Delayed aid",
+  "Other",
+];
+
+// One complaint form used by residents, volunteers and coordinators.
+// `forOthers` = the person is recording a complaint someone else made (shows "How it reached you").
+export function ComplaintForm({ onDone, shelters, forOthers = false }) {
+  const { t } = useI18n();
+  const blank = { topic: COMPLAINT_TOPICS[0], other: "", description: "", source: forOthers ? "in_person" : "direct", shelter_id: "" };
+  const [form, setForm] = useState(blank);
+  const [photo, setPhoto] = useState(null);
   const [shelterOptions, setShelterOptions] = useState(shelters || []);
+  const [error, setError] = useState("");
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
   useEffect(() => {
     if (!shelters) api("/shelters").then((data) => setShelterOptions(data.shelters)).catch(() => {});
   }, [shelters]);
+  async function submit(e) {
+    e.preventDefault();
+    setError("");
+    setSent(false);
+    const category = form.topic === "Other" ? form.other.trim() : form.topic;
+    if (!category) return setError(t("Write what the complaint is about"));
+    setBusy(true);
+    try {
+      const body = new FormData();
+      body.append("category", category);
+      body.append("description", form.description);
+      body.append("source", form.source);
+      if (form.shelter_id) body.append("shelter_id", form.shelter_id);
+      if (photo) body.append("photo", photo);
+      await api("/complaints", { method: "POST", body });
+      setForm(blank);
+      setPhoto(null);
+      e.target.reset();
+      setSent(true);
+      onDone?.();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
-    <form className="stack" onSubmit={async (e) => { e.preventDefault(); await api("/complaints", { method: "POST", body: JSON.stringify({ ...form, shelter_id: form.shelter_id || null }) }); onDone(); }}>
-      <Field label="Category"><input value={form.category} onChange={set("category")} required /></Field>
-      <Field label="How it arrived">
-        <Select value={form.source} onChange={set("source")} options={["direct", "email", "phone", "message", "photo", "note", "in_person"].map((value) => ({ value, label: value }))} />
-      </Field>
+    <form className="stack" onSubmit={submit}>
+      <div className="field">
+        <span>{t("What is the complaint about?")}</span>
+        <div className="chip-row" role="group">
+          {COMPLAINT_TOPICS.map((topic) => (
+            <button key={topic} type="button" className={`chip ${form.topic === topic ? "active" : ""}`} aria-pressed={form.topic === topic} onClick={() => setForm({ ...form, topic })}>{t(topic)}</button>
+          ))}
+        </div>
+      </div>
+      {form.topic === "Other" && <Field label="Write the topic"><input value={form.other} onChange={set("other")} required /></Field>}
+      {forOthers && (
+        <Field label="How it reached you">
+          <Select value={form.source} onChange={set("source")} options={[
+            { value: "in_person", label: "In person" }, { value: "phone", label: "Phone call" }, { value: "message", label: "Message" },
+            { value: "email", label: "Email" }, { value: "photo", label: "Photo" }, { value: "note", label: "Written note" },
+          ]} />
+        </Field>
+      )}
       <Field label="Shelter">
         <select value={form.shelter_id} onChange={set("shelter_id")}>
-          <option value="">My shelter</option>
+          <option value="">{t("My shelter")}</option>
           {shelterOptions.map((shelter) => <option key={shelter.id} value={shelter.id}>{shelter.name}</option>)}
         </select>
       </Field>
-      <Field label="What happened"><textarea value={form.description} onChange={set("description")} required /></Field>
-      <Button type="submit">Submit</Button>
+      <Field label="What happened"><textarea rows={4} placeholder={t("Write what happened, when, and where…")} value={form.description} onChange={set("description")} required /></Field>
+      <Field label="Attach a photo (optional)"><input type="file" accept=".png,.jpg,.jpeg,.webp,.pdf" onChange={(e) => setPhoto(e.target.files?.[0] || null)} /></Field>
+      <ErrorText>{error}</ErrorText>
+      {sent && <div className="banner green small">{t("Complaint sent. You can follow its status below.")}</div>}
+      <Button type="submit" disabled={busy}>{busy ? "Sending…" : "Send complaint"}</Button>
     </form>
   );
 }
@@ -778,4 +837,4 @@ export function PassportLookupPage() {
   );
 }
 
-export { ComplaintForm, FamilyForm };
+export { FamilyForm };
