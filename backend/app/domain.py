@@ -378,6 +378,7 @@ def opportunities():
 
 
 def forecast():
+    record_all_shelters()
     shelters = {shelter.id: shelter for shelter in Shelter.query.all()}
     by_region = {}
     for snap in HistorySnapshot.query.order_by(HistorySnapshot.month.asc()).all():
@@ -417,7 +418,43 @@ def forecast():
     return rows
 
 
+def record_current_month(shelter_id):
+    """Write this month's report row for a shelter from live data.
+    Called whenever reports are viewed, so the monthly report builds itself:
+    the row for the current month keeps updating until the month ends,
+    then stays as history and a new month's row starts."""
+    shelter = db.session.get(Shelter, shelter_id)
+    if not shelter:
+        return
+    today = datetime.now(timezone.utc)
+    month = month_key(today)
+    start = datetime(today.year, today.month, 1, tzinfo=timezone.utc)
+    residents = Profile.query.filter_by(shelter_id=shelter_id).all()
+    complaints_this_month = sum(
+        1 for c in Complaint.query.filter_by(shelter_id=shelter_id).all() if c.created_at and aware(c.created_at) >= start
+    )
+    values = {
+        "shortage_count": InventoryItem.query.filter_by(shelter_id=shelter_id, status="shortage").count(),
+        "occupancy": shelter.occupancy or 0,
+        "complaint_count": complaints_this_month,
+        "critical_count": sum(1 for person in residents if criticality_for(person)["level"] == "critical"),
+    }
+    snap = HistorySnapshot.query.filter_by(shelter_id=shelter_id, month=month).first()
+    if not snap:
+        snap = HistorySnapshot(shelter_id=shelter_id, month=month)
+        db.session.add(snap)
+    for key, value in values.items():
+        setattr(snap, key, value)
+    db.session.commit()
+
+
+def record_all_shelters():
+    for shelter in Shelter.query.all():
+        record_current_month(shelter.id)
+
+
 def history_for_shelter(shelter_id):
+    record_current_month(shelter_id)
     snaps = (
         HistorySnapshot.query.filter_by(shelter_id=shelter_id)
         .order_by(HistorySnapshot.month.asc())

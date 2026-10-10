@@ -1023,6 +1023,19 @@ function ComplaintBoard({ rows, reload, t, canAdd = true }) {
   );
 }
 
+const currentMonth = () => new Date().toISOString().slice(0, 7);
+
+function downloadReport(name, history) {
+  const header = "Month,Shortages,Occupancy,Complaints,Critical residents";
+  const lines = history.map((r) => [r.month, r.shortages, r.occupancy, r.complaints, r.critical].join(","));
+  const blob = new Blob([[header, ...lines].join("\n")], { type: "text/csv" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `${name.replace(/\W+/g, "-")}-monthly-report.csv`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
 function HistoryTable({ history }) {
   const { t } = useI18n();
   if (!history || history.length === 0) return <Empty>{t("No reports yet.")}</Empty>;
@@ -1030,7 +1043,7 @@ function HistoryTable({ history }) {
     <div className="table-wrap">
       <table className="data">
         <thead><tr><th>{t("Month")}</th><th>{t("Shortages")}</th><th>{t("Occupancy")}</th><th>{t("Complaints")}</th><th>{t("Critical")}</th></tr></thead>
-        <tbody>{history.map((row) => <tr key={row.month}><td>{row.month}</td><td>{row.shortages}</td><td>{row.occupancy}</td><td>{row.complaints}</td><td>{row.critical}</td></tr>)}</tbody>
+        <tbody>{history.map((row) => <tr key={row.month}><td>{row.month}{row.month === currentMonth() ? <span className="small muted"> · {t("this month, live")}</span> : null}</td><td>{row.shortages}</td><td>{row.occupancy}</td><td>{row.complaints}</td><td>{row.critical}</td></tr>)}</tbody>
       </table>
     </div>
   );
@@ -1039,10 +1052,14 @@ function HistoryTable({ history }) {
 export function ShelterReportsPage() {
   const { t } = useI18n();
   return (
-    <ShelterFrame title="Reports" sub="Monthly history of shortages, occupancy and complaints.">
+    <ShelterFrame title="Monthly report" sub="Shortages, occupancy, complaints and critical residents, month by month.">
       {(data) => (
         <section className="card stack">
-          <div className="spread"><h3>{data.shelter.name}</h3>{data.history.trend && <StatusPill value={data.history.trend} />}</div>
+          <div className="spread">
+            <h3>{data.shelter.name}</h3>
+            <Button type="button" soft onClick={() => downloadReport(data.shelter.name, data.history.history)}>Download CSV</Button>
+          </div>
+          <Note>{t("The app makes this report automatically from your shelter's data. The current month keeps updating until it ends, then it is saved as history.")}</Note>
           <HistoryTable history={data.history.history} />
           <p className="small muted">{t("Trend")}: {t(data.history.trend || "stable")}</p>
         </section>
