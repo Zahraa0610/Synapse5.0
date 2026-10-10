@@ -101,6 +101,7 @@ const STATUS_LABELS = {
   documents_received: "Documents received",
   checking: "Checking",
   approved: "Approved",
+  rejected: "Rejected",
 };
 
 export function StatusPill({ value }) {
@@ -1156,7 +1157,6 @@ export function MinistryOverviewPage() {
             <Stat value={data.open_complaints} label="Open complaints" />
             <Stat value={data.outbreak_count} label="Outbreak reports" />
           </div>
-          <Note>{t(data.note)}</Note>
           <section className="card stack">
             <h3>{t("Where help is needed first")}</h3>
             <div className="table-wrap">
@@ -1190,7 +1190,6 @@ function Forecast({ rows }) {
   return (
     <section className="card stack">
       <h3>{t("Demand forecast")}</h3>
-      <Note>{t("Planning estimate from reported shortages. A person decides what to send.")}</Note>
       {rows.length === 0 && <Empty>{t("Not enough history yet.")}</Empty>}
       {rows.map((row) => (
         <div className="row" key={row.region}>
@@ -1271,7 +1270,7 @@ export function MinistryComplaintsPage() {
             {data.patterns.filter((p) => p.count > 1 || p.reopened).map((p) => (
               <div className="row" key={`${p.shelter_id}-${p.category}`}>
                 <div><strong>{t(p.category)}</strong><div className="small muted">{p.shelter_name} · {p.region}</div></div>
-                <div className="inline"><span>{p.count}×</span>{p.reopened && <Pill value="high">{t("Came back after resolved")}</Pill>}</div>
+                <span>{p.count}×</span>
               </div>
             ))}
           </section>
@@ -1280,7 +1279,7 @@ export function MinistryComplaintsPage() {
             {data.regions.map((r) => (
               <div className="row" key={r.region}>
                 <div><strong>{r.region}</strong><div className="small muted">{r.categories.map((c) => `${t(c.category)} ${c.count}`).join(" · ")}</div></div>
-                <span>{r.open} {t("open")} / {r.total}</span>
+
               </div>
             ))}
           </section>
@@ -1310,11 +1309,11 @@ function NgoConnect({ rows, shelters, reload, t }) {
         <div className="row" key={item.id}>
           <div><strong>{item.organization}</strong><div className="small">{item.description}</div><div className="small muted">{item.shelter_name ? `→ ${item.shelter_name}` : t("Not connected yet")}</div></div>
           <div className="stack" style={{ alignItems: "flex-end" }}>
-            <select aria-label={t("Connect to shelter")} value={item.shelter_id || ""} onChange={(e) => action.run(`/ngo/requests/${item.id}`, "PATCH", { shelter_id: Number(e.target.value) })}>
+            <select aria-label={t("Connect to shelter")} disabled={item.status === "rejected"} value={item.shelter_id || ""} onChange={(e) => action.run(`/ngo/requests/${item.id}`, "PATCH", { shelter_id: Number(e.target.value) })}>
               <option value="">{t("Connect to shelter")}</option>
               {shelters.map((s) => <option key={s.id} value={s.id}>{s.name}{s.shortage_names.length ? ` (${s.shortage_names.length} ${t("short")})` : ""}</option>)}
             </select>
-            <StatusSelect value={item.status} options={["submitted", "connected", "accepted", "delivered", "completed"]} onChange={(status) => action.run(`/ngo/requests/${item.id}`, "PATCH", { status })} />
+            <StatusSelect value={item.status} options={["submitted", "connected", "accepted", "delivered", "completed", "rejected"]} onChange={(status) => action.run(`/ngo/requests/${item.id}`, "PATCH", { status })} />
           </div>
         </div>
       ))}
@@ -1335,9 +1334,16 @@ export function MinistryDonationsPage() {
           </div>
           <section className="card stack">
             <h3>{t("Distribution gaps")}</h3>
-            {data.distribution.filter((r) => r.gaps.length).map((r) => (
+            <p className="small muted">{t("Calculated live from each shelter's current shortages and the gifts recorded for it.")}</p>
+            {data.distribution.filter((r) => r.gaps.length || r.pledged_only?.length).length === 0 && <Empty>{t("Every reported shortage has a gift.")}</Empty>}
+            {data.distribution.filter((r) => r.gaps.length || r.pledged_only?.length).map((r) => (
               <div className="row" key={r.shelter_id}>
-                <div><strong>{r.shelter_name}</strong><div className="small muted">{r.region} · {r.donation_count} {t("gifts")} · {money(r.money)}</div><div className="small">{t("Still short")}: {r.gaps.join(", ")}</div></div>
+                <div>
+                  <strong>{r.shelter_name}</strong>
+                  <div className="small muted">{r.region} · {r.donation_count} {t("gifts")} · {money(r.money)} {t("received")}</div>
+                  <div className="small">{t("Still short, no gift yet")}: {r.gaps.join(", ")}</div>
+                  {r.pledged_only?.length > 0 && <div className="small muted">{t("Promised but not received yet")}: {r.pledged_only.join(", ")}</div>}
+                </div>
                 {r.underserved && <Pill value="high">{t("Underserved")}</Pill>}
               </div>
             ))}
@@ -1456,7 +1462,7 @@ export function NgoPage() {
         {(data?.requests || []).map((item) => (
           <div className="row" key={item.id}>
             <div><strong>{item.description}</strong><div className="small muted">{item.shelter_name ? `→ ${item.shelter_name}` : t("Waiting for the Ministry to connect a shelter")}</div></div>
-            {item.status === "submitted" ? <StatusPill value={item.status} /> : (
+            {["submitted", "rejected"].includes(item.status) ? <StatusPill value={item.status} /> : (
               <StatusSelect value={item.status} options={["connected", "accepted", "delivered", "completed"]} onChange={(status) => update.run(`/ngo/requests/${item.id}`, "PATCH", { status })} />
             )}
           </div>

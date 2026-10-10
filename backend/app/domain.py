@@ -551,16 +551,28 @@ def _add_risk(row, flags):
 
 
 def distribution():
+    """Compare each shelter's current shortages with the gifts recorded for it.
+    Everything is read live from the database: InventoryItem rows marked
+    "shortage" and Donation rows targeted at the shelter."""
+    arrived = {"received", "allocated", "distributed"}
     rows = []
     for shelter in Shelter.query.order_by(Shelter.name.asc()).all():
         shortages = InventoryItem.query.filter_by(shelter_id=shelter.id, status="shortage").all()
         donations = Donation.query.filter_by(target_shelter_id=shelter.id).all()
-        money = sum(donation.amount or 0 for donation in donations if donation.kind == "money")
-        physical = [donation.item_description for donation in donations if donation.kind == "physical"]
-        gaps = []
+        money = sum(d.amount or 0 for d in donations if d.kind == "money" and d.status in arrived)
+        received_items = [d.item_description or "" for d in donations if d.kind == "physical" and d.status in arrived]
+        pledged_items = [d.item_description or "" for d in donations if d.kind == "physical" and d.status == "pledged"]
+
+        def mentioned(name, descriptions):
+            return any(name.lower() in desc.lower() or desc.lower() in name.lower() for desc in descriptions if desc)
+
+        gaps, pledged_only = [], []
         for item in shortages:
-            covered = any(item.item_name.lower() in (desc or "").lower() for desc in physical)
-            if not covered:
+            if mentioned(item.item_name, received_items):
+                continue
+            if mentioned(item.item_name, pledged_items):
+                pledged_only.append(item.item_name)
+            else:
                 gaps.append(item.item_name)
         rows.append(
             {
@@ -570,9 +582,11 @@ def distribution():
                 "shortage_count": len(shortages),
                 "donation_count": len(donations),
                 "money": money,
-                "physical": physical,
+                "physical": received_items,
                 "gaps": gaps,
-                "underserved": len(gaps) > 0 and money < 100,
+                "pledged_only": pledged_only,
+                # Underserved: some shortages have no gift at all, not even a promise.
+                "underserved": len(gaps) > 0,
             }
         )
     rows.sort(key=lambda row: (-len(row["gaps"]), -row["shortage_count"]))

@@ -266,7 +266,7 @@ def update_ngo_request(item_id):
                 item.status = "connected"
         status = (data.get("status") or "").strip()
         if status:
-            if status not in {"submitted", "connected", "accepted", "delivered", "completed"}:
+            if status not in {"submitted", "connected", "accepted", "delivered", "completed", "rejected"}:
                 return error("Choose a status", 400)
             item.status = status
     elif g.user.role == "ngo":
@@ -277,6 +277,8 @@ def update_ngo_request(item_id):
             return error("Update the request once the Ministry has connected it", 400)
         if item.status == "submitted":
             return error("Wait until the Ministry connects this request to a shelter", 400)
+        if item.status == "rejected":
+            return error("The Ministry did not accept this request", 400)
         item.status = status
     else:
         if item.shelter_id != g.user.shelter_id:
