@@ -14,6 +14,7 @@ from .models import (
     Pregnancy,
     Profile,
     Shelter,
+    SupportFlag,
     User,
 )
 

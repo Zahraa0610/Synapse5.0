@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api, fileUrl, formatWhen } from "./api";
 import { useAuth, useI18n } from "./context";
 import { saveOffline, SummaryCard } from "./AuthPages";
@@ -126,11 +126,12 @@ export function PassportPage() {
   const home = useData("/home");
   const profiles = home.data?.profiles || [];
   const [profileId, setProfileId] = useState(null);
+  const profileKey = profiles.map((profile) => profile.id).join(",");
   useEffect(() => {
     const query = new URLSearchParams(window.location.search).get("profile");
     if (query) setProfileId(Number(query));
-    else if (profiles[0] && !profileId) setProfileId(profiles[0].id);
-  }, [profiles, profileId]);
+    else if (profiles[0]) setProfileId((current) => current || profiles[0].id);
+  }, [profileKey]);
   const passport = useData(profileId ? `/profiles/${profileId}/passport` : null);
   const clinicians = useData("/clinicians");
   const [tab, setTab] = useState("all");
@@ -156,7 +157,7 @@ export function PassportPage() {
               <h2>{passport.data.profile.full_name}</h2>
               <p className="small muted">{passport.data.profile.shelter_name} · {passport.data.profile.blood_type || "Blood type not set"}</p>
             </div>
-            <Pill value={passport.data.profile.criticality.level}>{passport.data.profile.criticality.confirmed ? "Confirmed" : "Suggested"} {passport.data.profile.criticality.level}</Pill>
+            <Pill value={passport.data.profile.criticality.level}>{passport.data.profile.criticality.confirmed ? "Confirmed" : "Suggested"} · {passport.data.profile.criticality.level === "critical" ? "Critical" : "Non-critical"}</Pill>
           </div>
           <div className="segment" style={{ overflowX: "auto" }}>
             {[["all", "All"], ["condition", "Conditions"], ["medication", "Medications"], ["records", "Records"], ["vaccine", "Vaccines"], ["access", "Access"]].map(([value, label]) => (
@@ -318,9 +319,10 @@ export function CarePage() {
   const home = useData("/home");
   const profiles = home.data?.profiles || [];
   const [profileId, setProfileId] = useState(null);
+  const profileKey = profiles.map((profile) => profile.id).join(",");
   useEffect(() => {
-    if (profiles[0] && !profileId) setProfileId(profiles[0].id);
-  }, [profiles, profileId]);
+    if (profiles[0]) setProfileId((current) => current || profiles[0].id);
+  }, [profileKey]);
   const care = useData(profileId ? `/profiles/${profileId}/care` : null);
   const data = care.data;
   return (
@@ -333,7 +335,7 @@ export function CarePage() {
           <div className={`banner ${data.criticality.level === "critical" ? "rose" : "green"}`}>
             <div className="spread">
               <strong>{data.criticality.confirmed ? t("Confirmed") : t("Not yet confirmed")}</strong>
-              <Pill value={data.criticality.level}>{data.criticality.level}</Pill>
+              <Pill value={data.criticality.level}>{data.criticality.level === "critical" ? "Critical" : "Non-critical"}</Pill>
             </div>
             <p className="small">{(data.criticality.reasons || []).join(" · ") || "No urgent supply signal."}</p>
             <p className="small muted">{t("Suggested from reported supplies. A coordinator or clinician confirms it.")} {t("This supports a decision. It does not assign care.")}</p>
@@ -647,6 +649,7 @@ function PersonSelect({ profiles, value, onChange }) {
 export function ProfilePage() {
   const { user, logout } = useAuth();
   const { t } = useI18n();
+  const navigate = useNavigate();
   return (
     <div className="stack">
       <h1>{user.full_name}</h1>
@@ -656,7 +659,7 @@ export function ProfilePage() {
         <div className="spread"><span>Role</span><span>{user.role}</span></div>
         <div className="spread"><span>{t("Status")}</span><Pill value={user.verification_status}>{user.verification_status}</Pill></div>
       </div>
-      <Button ghost onClick={logout}>Sign out</Button>
+      <Button ghost onClick={() => { logout(); navigate("/login"); }}>Sign out</Button>
     </div>
   );
 }

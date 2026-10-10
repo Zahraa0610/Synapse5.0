@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
-import { api, DEMO_ACCOUNTS, DEMO_PASSWORD, homeFor } from "./api";
+import { api, homeFor } from "./api";
 import { useAuth, useI18n } from "./context";
 import { Button, ErrorText, Field, LangToggle, Mark, Note, Pill, Select } from "./ui";
 
@@ -68,16 +68,6 @@ export function LoginPage() {
     }
   }
 
-  async function demo(address) {
-    setError("");
-    try {
-      const user = await login({ email: address, password: DEMO_PASSWORD });
-      navigate(homeFor(user.role));
-    } catch (err) {
-      setError(err.message);
-    }
-  }
-
   return (
     <div className="center-page">
       <form className="auth-wrap auth-card" onSubmit={submit}>
@@ -107,15 +97,6 @@ export function LoginPage() {
         <Button className="full" type="submit">Sign in</Button>
         <Link to="/register">{t("Create an account")}</Link>
         <Link to="/emergency">{t("Emergency aid works without signing in")}</Link>
-        <div>
-          <div className="small muted">{t("Try a role")}</div>
-          <div className="demo-grid" style={{ marginTop: 8 }}>
-            {DEMO_ACCOUNTS.map(([label, address]) => (
-              <button key={address} type="button" onClick={() => demo(address)}>{label}</button>
-            ))}
-          </div>
-          <p className="small muted">Password {DEMO_PASSWORD}. Phone code 000000.</p>
-        </div>
       </form>
     </div>
   );

@@ -59,11 +59,11 @@ export function Select({ options, ...props }) {
   );
 }
 
-export function Button({ children, soft, ghost, ...props }) {
+export function Button({ children, soft, ghost, className = "", ...props }) {
   const { t } = useI18n();
-  const className = ghost ? "btn-ghost" : soft ? "btn-soft" : "btn";
+  const base = ghost ? "btn-ghost" : soft ? "btn-soft" : "btn";
   return (
-    <button className={`${className} ${props.className || ""}`} {...props}>
+    <button className={`${base} ${className}`} {...props}>
       {typeof children === "string" ? t(children) : children}
     </button>
   );
