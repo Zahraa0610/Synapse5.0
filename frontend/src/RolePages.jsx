@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api, formatWhen } from "./api";
 import { useAuth, useI18n } from "./context";
-import { ComplaintForm, CriticalityControl, useData } from "./PatientPages";
+import { ComplaintForm, CriticalityControl, LIVING_SITUATIONS, useData } from "./PatientPages";
 import { Bars, Button, Empty, ErrorText, Field, Note, Pill, Select } from "./ui";
 
 /* ------------------------------------------------------------------ */
@@ -473,6 +473,7 @@ function GiveForm({ opportunity, onDone }) {
       target_shelter_id: opportunity.target_shelter_id,
       target_profile_id: opportunity.target_profile_id,
       cause_label: opportunity.target_type === "cause" ? opportunity.title : undefined,
+      donation_request_id: opportunity.donation_request_id,
       from_recommendation: opportunity.recommended,
     });
     if (result) { setDone(true); onDone?.(); }
@@ -506,12 +507,16 @@ function Opportunity({ item, onDone }) {
   return (
     <div className="card stack">
       <div className="spread">
-        <span className="eyebrow">{t(item.kind === "case" ? "Medical case" : "Shelter need")}</span>
-        {item.verified && <Pill value="approved">{t("Verified")}</Pill>}
+        <span className="eyebrow">{t(item.kind === "case" ? "Medical case" : item.kind === "request" ? "Family outside a shelter" : "Shelter need")}</span>
+        {item.verified ? <Pill value="approved">{t("Verified")}</Pill> : <Pill value="neutral">{t("Not verified by a shelter")}</Pill>}
       </div>
-      <strong>{item.title}</strong>
+      <strong>{t(item.title)}</strong>
       <p className="small">{item.detail}</p>
-      <p className="small muted">{[item.shelter_name, item.region].filter(Boolean).join(" · ")}</p>
+      <p className="small muted">{[
+        item.living_situation ? t(LIVING_SITUATIONS.find(([v]) => v === item.living_situation)?.[1]) : null,
+        item.people_count ? `${item.people_count} ${t("people")}` : null,
+        item.shelter_name, item.area, item.region,
+      ].filter(Boolean).join(" · ")}</p>
       {open ? <GiveForm opportunity={item} onDone={onDone} /> : <Button type="button" onClick={() => setOpen(true)}>Give</Button>}
     </div>
   );

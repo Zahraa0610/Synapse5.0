@@ -369,6 +369,31 @@ def opportunities():
                 "item_description": reasons[0] if reasons else "medical supplies",
             }
         )
+    from .models import DonationRequest
+
+    for req in DonationRequest.query.filter_by(status="open").all():
+        items.append(
+            {
+                "key": f"request-{req.id}",
+                "kind": "request",
+                "title": f"{req.category.replace('_', ' ').capitalize()} for a family",
+                "detail": req.description,
+                "living_situation": req.living_situation,
+                "people_count": req.people_count,
+                "shelter_id": None,
+                "shelter_name": None,
+                "region": req.region,
+                "area": req.area,
+                "urgency": 2,
+                "verified": False,
+                "confirmed": False,
+                "target_type": "request",
+                "target_shelter_id": None,
+                "target_profile_id": req.profile_id,
+                "donation_request_id": req.id,
+                "item_description": req.description[:120],
+            }
+        )
     items.sort(key=lambda row: (-row["urgency"], row["title"]))
     if items:
         items[0]["recommended"] = True

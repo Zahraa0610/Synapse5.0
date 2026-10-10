@@ -315,6 +315,25 @@ class Donation(db.Model):
     status = db.Column(db.String(20), nullable=False, default="pledged")
     coordinator_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     from_recommendation = db.Column(db.Boolean, nullable=False, default=False)
+    donation_request_id = db.Column(db.Integer, db.ForeignKey("donation_requests.id"))
+    created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
+
+
+class DonationRequest(db.Model):
+    """A displaced family outside the shelters (tent, renting, host family...) asking for help."""
+
+    __tablename__ = "donation_requests"
+
+    id = db.Column(db.Integer, primary_key=True)
+    requester_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    profile_id = db.Column(db.Integer, db.ForeignKey("profiles.id"))
+    living_situation = db.Column(db.String(30), nullable=False)
+    region = db.Column(db.String(80), nullable=False)
+    area = db.Column(db.String(160))
+    category = db.Column(db.String(40), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    people_count = db.Column(db.Integer)
+    status = db.Column(db.String(20), nullable=False, default="open")
     created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
 
 

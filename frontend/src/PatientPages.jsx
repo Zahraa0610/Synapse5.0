@@ -71,7 +71,8 @@ export function HomePage() {
             <Link className="card" to="/passport"><strong>{t("Health passport")}</strong><p className="small muted">History, vaccines, files</p></Link>
             <Link className="card" to="/care"><strong>{t("Care needs")}</strong><p className="small muted">{t("Devices, dialysis, pregnancy, food")}</p></Link>
             <Link className="card" to="/requests"><strong>{t("Request transport")}</strong><p className="small muted">Rides and complaints</p></Link>
-            <Link className="card" to="/emergency"><strong>{t("Emergency card")}</strong><p className="small muted">Works offline once saved</p></Link>
+            <Link className="card" to="/emergency"><strong>{t("Emergency card")}</strong><p className="small muted">{t("Works offline once saved")}</p></Link>
+            <Link className="card" to="/requests#donations"><strong>{t("Ask for donations")}</strong><p className="small muted">{t("For families outside shelters")}</p></Link>
           </div>
           <section className="card">
             <h3>{t("Near you")}</h3>
@@ -559,12 +560,16 @@ function PregnancyForm({ profileId, current, onDone }) {
 export function RequestsPage() {
   const { t } = useI18n();
   const { data, error, reload } = useData("/requests/mine");
+  useEffect(() => {
+    if (data && window.location.hash) document.querySelector(window.location.hash)?.scrollIntoView({ behavior: "smooth" });
+  }, [Boolean(data)]);
   return (
     <div className="stack">
       <h1>{t("Requests")}</h1>
       <ErrorText>{error}</ErrorText>
       {data && (
         <>
+          <DonationRequestSection profiles={data.profiles} />
           <section className="card stack">
             <h3>{t("Appointments at risk")}</h3>
             {data.appointments.filter((item) => data.at_risk_appointment_ids.includes(item.id)).map((item) => (
@@ -613,6 +618,120 @@ export function RequestsPage() {
         </>
       )}
     </div>
+  );
+}
+
+export const LIVING_SITUATIONS = [
+  ["tent", "Tent or camp"], ["renting", "Renting"], ["host_family", "With a host family"],
+  ["unfinished_building", "Unfinished building"], ["car", "In a car"], ["other", "Other"],
+];
+const REQUEST_CATEGORIES = [
+  ["food", "Food"], ["medicine", "Medicine"], ["baby", "Baby needs"], ["hygiene", "Hygiene"],
+  ["blankets", "Blankets and heating"], ["clothes", "Clothes"], ["rent", "Help with rent"], ["other", "Other"],
+];
+const REGION_NAMES = ["Beirut", "Mount Lebanon", "North", "Akkar", "Bekaa", "Baalbek-Hermel", "South", "Nabatieh"];
+
+// For displaced families outside the shelters (tents, renting, host families...).
+function DonationRequestSection({ profiles }) {
+  const { t } = useI18n();
+  const mine = useData("/donation-requests/mine");
+  const blank = { living_situation: "tent", region: "", area: "", category: "food", description: "", people_count: "", profile_id: "" };
+  const [form, setForm] = useState(blank);
+  const [error, setError] = useState("");
+  const [sent, setSent] = useState(false);
+  const [open, setOpen] = useState(false);
+  const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
+  async function submit(e) {
+    e.preventDefault();
+    setError("");
+    try {
+      await api("/donation-requests", { method: "POST", body: JSON.stringify({ ...form, profile_id: form.profile_id || null }) });
+      setForm(blank);
+      setSent(true);
+      setOpen(false);
+      mine.reload();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+  async function act(path, body) {
+    try {
+      await api(path, { method: body ? "PATCH" : "POST", body: JSON.stringify(body || {}) });
+      mine.reload();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+  const requests = mine.data?.requests || [];
+  return (
+    <section className="card stack" id="donations">
+      <div className="spread">
+        <h3>{t("Ask for donations")}</h3>
+        {!open && <Button type="button" soft onClick={() => { setOpen(true); setSent(false); }}>New request</Button>}
+      </div>
+      <p className="small muted">{t("Not in a shelter? If you live in a tent, rent, or stay with a host family, donors can still help you.")}</p>
+      {sent && <div className="banner green small">{t("Your request is now visible to donors.")}</div>}
+      {open && (
+        <form className="stack" onSubmit={submit}>
+          <Field label="Where are you staying?">
+            <Select value={form.living_situation} onChange={set("living_situation")} options={LIVING_SITUATIONS.map(([value, label]) => ({ value, label }))} />
+          </Field>
+          <div className="grid-2">
+            <Field label="Region">
+              <select value={form.region} onChange={set("region")} required>
+                <option value="">—</option>
+                {REGION_NAMES.map((name) => <option key={name} value={name}>{name}</option>)}
+              </select>
+            </Field>
+            <Field label="Town or area"><input value={form.area} onChange={set("area")} placeholder={t("e.g. Saida, Old City")} /></Field>
+            <Field label="What do you need?">
+              <Select value={form.category} onChange={set("category")} options={REQUEST_CATEGORIES.map(([value, label]) => ({ value, label }))} />
+            </Field>
+            <Field label="People in your family"><input type="number" min="1" value={form.people_count} onChange={set("people_count")} /></Field>
+          </div>
+          {profiles.length > 0 && (
+            <Field label="For a family member (optional)">
+              <select value={form.profile_id} onChange={set("profile_id")}>
+                <option value="">{t("The whole family")}</option>
+                {profiles.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+              </select>
+            </Field>
+          )}
+          <Field label="Describe what you need"><textarea rows={3} maxLength={500} value={form.description} onChange={set("description")} required /></Field>
+          <p className="small muted">{t("Do not write your exact address. A donor or volunteer will arrange delivery with you.")}</p>
+          <ErrorText>{error}</ErrorText>
+          <div className="action-row">
+            <Button type="button" ghost onClick={() => setOpen(false)}>Cancel</Button>
+            <Button type="submit">Send request</Button>
+          </div>
+        </form>
+      )}
+      {requests.map((req) => (
+        <div className="card stack" key={req.id}>
+          <div className="spread">
+            <strong>{t(REQUEST_CATEGORIES.find(([v]) => v === req.category)?.[1] || req.category)}</strong>
+            <Pill value={req.status === "open" ? "open" : "resolved"}>{t(req.status === "open" ? "Open" : req.status === "fulfilled" ? "Fulfilled" : "Closed")}</Pill>
+          </div>
+          <p className="small">{req.description}</p>
+          <p className="small muted">{[t(LIVING_SITUATIONS.find(([v]) => v === req.living_situation)?.[1]), req.area, req.region].filter(Boolean).join(" · ")}</p>
+          {req.donations.length === 0 && <p className="small muted">{t("No donations yet.")}</p>}
+          {req.donations.map((gift) => (
+            <div className="row" key={gift.id}>
+              <div><strong>{gift.kind === "money" ? `${gift.amount} ${gift.currency}` : gift.item_description}</strong><div className="small muted">{gift.donor_name}</div></div>
+              {gift.status === "pledged"
+                ? <Button type="button" soft onClick={() => act(`/donations/${gift.id}/received`)}>I received it</Button>
+                : <Pill value="received">{t("Received")}</Pill>}
+            </div>
+          ))}
+          {req.status === "open" && (
+            <div className="action-row">
+              <Button type="button" ghost onClick={() => act(`/donation-requests/${req.id}`, { status: "closed" })}>Close request</Button>
+              <Button type="button" soft onClick={() => act(`/donation-requests/${req.id}`, { status: "fulfilled" })}>My needs are met</Button>
+            </div>
+          )}
+        </div>
+      ))}
+    </section>
   );
 }
 

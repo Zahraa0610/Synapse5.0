@@ -13,6 +13,7 @@ from .models import (
     DialysisSeat,
     DialysisSession,
     Donation,
+    DonationRequest,
     HistorySnapshot,
     InventoryItem,
     MedicalEntry,
@@ -867,5 +868,20 @@ def seed():
                     critical_count=2 + (index % 4),
                 )
             )
+
+    # A displaced family renting outside the shelters asks for help.
+    hussein = user("Hussein Ali", "hussein@maak.test", "+96170111011", "caregiver")
+    db.session.add(
+        DonationRequest(
+            requester_user_id=hussein.id,
+            living_situation="renting",
+            region="South",
+            area="Saida, Old City",
+            category="food",
+            description="Family of 6 renting one room. We need food parcels and baby formula for a 1-year-old.",
+            people_count=6,
+            status="open",
+        )
+    )
 
     db.session.commit()
