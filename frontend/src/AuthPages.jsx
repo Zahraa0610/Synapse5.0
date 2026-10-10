@@ -151,7 +151,7 @@ export function RegisterPage() {
   });
   const [file, setFile] = useState(null);
   const [verifiedPhone, setVerifiedPhone] = useState("");
-  const hasPhone = form.phone.replace(/\D/g, "").length > 3;
+  const wantsEmail = form.email.trim() !== "";
   const [captured, setCaptured] = useState(false);
   const set = (key) => (event) => {
     const value = event.target.type === "checkbox" ? event.target.checked : event.target.value;
@@ -163,18 +163,17 @@ export function RegisterPage() {
 
   async function ensureShelters() {
     if (shelters.length) return;
-    const data = await api("/shelters").catch(() => null);
+    const data = await api("/shelters/names").catch(() => null);
     if (data) setShelters(data.shelters);
   }
 
   async function nextAccount(event) {
     event.preventDefault();
     setError("");
-    if (!hasPhone && !form.email.trim()) return setError(t("Enter a phone number or an email."));
-    if (hasPhone && !verifiedPhone) return setError(t("Confirm your phone number with the WhatsApp code first."));
+    if (!verifiedPhone) return setError(t("Confirm your phone number with the WhatsApp code first."));
     if (!shelters.length) {
       try {
-        const data = await api("/shelters");
+        const data = await api("/shelters/names");
         setShelters(data.shelters || []);
       } catch {
         setShelters([]);
@@ -192,7 +191,9 @@ export function RegisterPage() {
       const user = await register({
         ...form,
         shelter_id: form.shelter_id || null,
-        phone: hasPhone ? verifiedPhone : null,
+        phone: verifiedPhone,
+        email: form.email.trim() || null,
+        password: wantsEmail ? form.password : "",
       });
       if (file) {
         const body = new FormData();
@@ -245,8 +246,13 @@ export function RegisterPage() {
             </div>
             <Field label="Full name"><input value={form.full_name} onChange={set("full_name")} required /></Field>
             <PhoneVerify phone={form.phone} onPhone={(value) => setForm((cur) => ({ ...cur, phone: value }))} verified={verifiedPhone} onVerified={setVerifiedPhone} />
-            <Field label="Email"><input type="email" value={form.email} onChange={set("email")} /></Field>
-            <Field label="Password (8+ characters)"><input type="password" autoComplete="new-password" minLength={8} value={form.password} onChange={set("password")} required /></Field>
+            <Field label="Email (optional)"><input type="email" autoComplete="email" value={form.email} onChange={set("email")} /></Field>
+            {wantsEmail && (
+              <Field label="Password for email sign-in (8+ characters)">
+                <input type="password" autoComplete="new-password" minLength={8} value={form.password} onChange={set("password")} required />
+              </Field>
+            )}
+            <p className="small muted">{t("You sign in with a WhatsApp code sent to your phone. Adding an email lets you also sign in with email and password.")}</p>
             {form.role === "volunteer" && (
               <Field label="Helper type">
                 <Select value={form.helper_type} onChange={set("helper_type")} options={HELPERS.map(([value, label]) => ({ value, label }))} />

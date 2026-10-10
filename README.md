@@ -87,8 +87,9 @@ npm run dev                       # open http://localhost:5173
 ```
 
 The system starts empty. The Ministry admin registers shelters (Ministry → Shelters → Register a
-shelter) and approves clinician and NGO accounts; everyone else signs up in the app. Sign-up with a
-phone number requires the WhatsApp code.
+shelter) and approves clinician and NGO accounts; everyone else signs up in the app with a phone
+number confirmed by a WhatsApp code. Email is optional; adding one lets a person also sign in with
+email and password.
 
 ## Tests
 
