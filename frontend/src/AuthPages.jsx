@@ -55,23 +55,18 @@ export function LoginPage() {
   const [error, setError] = useState("");
   const [hint, setHint] = useState("");
   const [sending, setSending] = useState(false);
-  const [demoInfo, setDemoInfo] = useState(null);
-
-  // Quick-login buttons exist only when the server runs in demo mode.
-  useEffect(() => {
-    api("/health")
-      .then((health) => (health.demo ? api("/demo/accounts") : null))
-      .then((info) => info && setDemoInfo(info))
-      .catch(() => {});
-  }, []);
+  const [codeSent, setCodeSent] = useState(false);
 
   async function sendCode() {
     setError("");
     setHint("");
     setSending(true);
     try {
-      const result = await api("/auth/send-code", { method: "POST", body: JSON.stringify({ phone }) });
-      setHint(result.demo_code ? `${t("Demo mode: your code is")} ${result.demo_code}` : t("If this number has an account, a code was sent."));
+      const result = await api("/auth/send-code", { method: "POST", body: JSON.stringify({ phone, purpose: "login" }) });
+      setCodeSent(true);
+      setHint(result.channel === "console"
+        ? t("WhatsApp is not set up on this server yet. The code was printed in the server console.")
+        : t("If this number has an account, we sent a code on WhatsApp."));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -92,16 +87,6 @@ export function LoginPage() {
     }
   }
 
-  async function demo(address) {
-    setError("");
-    try {
-      const user = await login({ email: address, password: demoInfo.password });
-      navigate(homeFor(user.role));
-    } catch (err) {
-      setError(err.message);
-    }
-  }
-
   return (
     <div className="center-page">
       <form className="auth-wrap auth-card" onSubmit={submit}>
@@ -116,10 +101,12 @@ export function LoginPage() {
         </div>
         {mode === "phone" ? (
           <>
-            <Field label="Phone number"><input value={phone} onChange={(e) => setPhone(e.target.value)} /></Field>
-            <Button type="button" soft disabled={sending || phone.length < 8} onClick={sendCode}>{sending ? "Sending…" : "Send code"}</Button>
+            <Field label="Phone number (WhatsApp)"><input type="tel" autoComplete="tel" value={phone} onChange={(e) => { setPhone(e.target.value); setCodeSent(false); }} placeholder="+961 70 123 456" /></Field>
+            <Button type="button" soft disabled={sending || phone.replace(/\D/g, "").length < 8} onClick={sendCode}>
+              {sending ? "Sending…" : codeSent ? "Send a new code" : "Send code on WhatsApp"}
+            </Button>
             {hint && <p className="small muted">{hint}</p>}
-            <Field label="6-digit code"><input inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} /></Field>
+            {codeSent && <Field label="6-digit code"><input inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} required /></Field>}
           </>
         ) : (
           <>
@@ -131,16 +118,6 @@ export function LoginPage() {
         <Button className="full" type="submit">Sign in</Button>
         <Link to="/register">{t("Create an account")}</Link>
         <Link to="/emergency">{t("Emergency aid works without signing in")}</Link>
-        {demoInfo && (
-          <div className="demo-box">
-            <div className="small"><strong>{t("Demo mode")}</strong> · {t("Try a role")}</div>
-            <div className="demo-grid" style={{ marginTop: 8 }}>
-              {demoInfo.accounts.map(({ label, email: address }) => (
-                <button key={address} type="button" onClick={() => demo(address)}>{t(label)}</button>
-              ))}
-            </div>
-          </div>
-        )}
       </form>
     </div>
   );
@@ -174,6 +151,8 @@ export function RegisterPage() {
     car_wheelchair: false,
   });
   const [file, setFile] = useState(null);
+  const [verifiedPhone, setVerifiedPhone] = useState("");
+  const hasPhone = form.phone.replace(/\D/g, "").length > 3;
   const [captured, setCaptured] = useState(false);
   const set = (key) => (event) => {
     const value = event.target.type === "checkbox" ? event.target.checked : event.target.value;
@@ -192,6 +171,8 @@ export function RegisterPage() {
   async function nextAccount(event) {
     event.preventDefault();
     setError("");
+    if (!hasPhone && !form.email.trim()) return setError(t("Enter a phone number or an email."));
+    if (hasPhone && !verifiedPhone) return setError(t("Confirm your phone number with the WhatsApp code first."));
     if (!shelters.length) {
       try {
         const data = await api("/shelters");
@@ -213,7 +194,7 @@ export function RegisterPage() {
         ...form,
         offers_driving: form.offers_driving || form.helper_type === "transport",
         shelter_id: form.shelter_id || null,
-        phone: form.phone === "+961" ? null : form.phone,
+        phone: hasPhone ? verifiedPhone : null,
       });
       if (file) {
         const body = new FormData();
@@ -265,9 +246,9 @@ export function RegisterPage() {
               </div>
             </div>
             <Field label="Full name"><input value={form.full_name} onChange={set("full_name")} required /></Field>
-            <Field label="Phone number"><input value={form.phone} onChange={set("phone")} /></Field>
+            <PhoneVerify phone={form.phone} onPhone={(value) => setForm((cur) => ({ ...cur, phone: value }))} verified={verifiedPhone} onVerified={setVerifiedPhone} />
             <Field label="Email"><input type="email" value={form.email} onChange={set("email")} /></Field>
-            <Field label="Password"><input type="password" value={form.password} onChange={set("password")} required /></Field>
+            <Field label="Password (8+ characters)"><input type="password" autoComplete="new-password" minLength={8} value={form.password} onChange={set("password")} required /></Field>
             {form.role === "volunteer" && (
               <Field label="Helper type">
                 <Select value={form.helper_type} onChange={set("helper_type")} options={HELPERS.map(([value, label]) => ({ value, label }))} />
@@ -369,6 +350,79 @@ export function RegisterPage() {
           </>
         )}
       </form>
+    </div>
+  );
+}
+
+// Phone number + "send code on WhatsApp" + code box. Calls onVerified(phone) when confirmed.
+function PhoneVerify({ phone, onPhone, verified, onVerified }) {
+  const { t } = useI18n();
+  const [sent, setSent] = useState(false);
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [hint, setHint] = useState("");
+  const isVerified = verified && verified === normalize(phone);
+
+  function normalize(value) {
+    const clean = (value || "").replace(/[\s\-().]/g, "");
+    return clean.startsWith("00") ? `+${clean.slice(2)}` : clean;
+  }
+
+  async function send() {
+    setBusy(true);
+    setError("");
+    try {
+      const result = await api("/auth/send-code", { method: "POST", body: JSON.stringify({ phone, purpose: "signup" }) });
+      setSent(true);
+      setHint(result.channel === "console"
+        ? t("WhatsApp is not set up on this server yet. The code was printed in the server console.")
+        : t("We sent a 6-digit code on WhatsApp."));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function check() {
+    setBusy(true);
+    setError("");
+    try {
+      const result = await api("/auth/verify-code", { method: "POST", body: JSON.stringify({ phone, code }) });
+      onVerified(result.phone);
+      setHint("");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="stack">
+      <Field label="Phone number (WhatsApp)">
+        <input type="tel" autoComplete="tel" value={phone} placeholder="+961 70 123 456"
+          onChange={(e) => { onPhone(e.target.value); setSent(false); setCode(""); onVerified(""); }} />
+      </Field>
+      {isVerified ? (
+        <div className="banner green small">✓ {t("Phone number confirmed")}</div>
+      ) : (
+        <>
+          <Button type="button" soft disabled={busy || phone.replace(/\D/g, "").length < 8} onClick={send}>
+            {busy && !sent ? "Sending…" : sent ? "Send a new code" : "Send code on WhatsApp"}
+          </Button>
+          {hint && <p className="small muted">{hint}</p>}
+          {sent && (
+            <div className="inline">
+              <input aria-label={t("6-digit code")} inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder={t("6-digit code")}
+                value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} />
+              <Button type="button" disabled={busy || code.length !== 6} onClick={check}>Confirm</Button>
+            </div>
+          )}
+          <ErrorText>{error}</ErrorText>
+        </>
+      )}
     </div>
   );
 }

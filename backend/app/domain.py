@@ -68,6 +68,7 @@ def user_public(user):
         "shelter_id": user.shelter_id,
         "shelter_name": (db.session.get(Shelter, user.shelter_id).name if user.shelter_id and db.session.get(Shelter, user.shelter_id) else None),
         "has_license_file": bool(user.license_file),
+        "phone_verified": bool(user.phone_verified),
         "id_document_type": user.id_document_type,
         "id_document_number": user.id_document_number,
         "offers_driving": bool(user.offers_driving),

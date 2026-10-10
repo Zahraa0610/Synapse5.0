@@ -7,3 +7,6 @@ venv/
 backend/maak.db
 backend/uploads/
 .DS_Store
+backend/.env
+backend/*firebase*.json
+backend/serviceAccount*.json
