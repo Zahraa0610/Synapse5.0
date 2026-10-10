@@ -122,7 +122,9 @@ function FamilyForm({ onDone }) {
       <Field label="Full name"><input value={form.full_name} onChange={set("full_name")} required /></Field>
       <Field label="Relationship"><Select value={form.relationship} onChange={set("relationship")} options={RELATIONS.map((value) => ({ value, label: value }))} /></Field>
       <Field label="Date of birth"><input type="date" value={form.date_of_birth} onChange={set("date_of_birth")} /></Field>
-      <label className="check"><input type="checkbox" checked={form.disability} onChange={set("disability")} /> Disability or access need</label>
+      <div className="check-group">
+        <label className="check"><input type="checkbox" checked={form.disability} onChange={set("disability")} /> {t("Disability or access need")}</label>
+      </div>
       <ErrorText>{error}</ErrorText>
       <Button type="submit">Save</Button>
       <span className="small muted">{t("Family")}</span>
@@ -628,6 +630,7 @@ function AppointmentForm({ profiles, onDone }) {
 }
 
 function TransportForm({ profiles, appointments, onDone }) {
+  const { t } = useI18n();
   const [form, setForm] = useState({ profile_id: profiles[0]?.id || "", destination: "", destination_type: "hospital", wheelchair_required: false, appointment_id: "" });
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.type === "checkbox" ? e.target.checked : e.target.value });
   return (
@@ -649,20 +652,25 @@ function TransportForm({ profiles, appointments, onDone }) {
           ))}
         </select>
       </Field>
-      <label className="check"><input type="checkbox" checked={form.wheelchair_required} onChange={set("wheelchair_required")} /> Wheelchair access</label>
+      <div className="check-group">
+        <label className="check"><input type="checkbox" checked={form.wheelchair_required} onChange={set("wheelchair_required")} /> {t("Wheelchair access")}</label>
+      </div>
       <Button type="submit">Request transport</Button>
     </form>
   );
 }
 
 function FlagForm({ profiles, onDone }) {
+  const { t } = useI18n();
   const [form, setForm] = useState({ profile_id: profiles[0]?.id || "", reason: "", includes_bullying: false });
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.type === "checkbox" ? e.target.checked : e.target.value });
   return (
     <form className="stack" onSubmit={async (e) => { e.preventDefault(); await api("/support-flags", { method: "POST", body: JSON.stringify({ ...form, profile_id: Number(form.profile_id) }) }); onDone(); }}>
       <PersonSelect profiles={profiles} value={form.profile_id} onChange={set("profile_id")} />
       <Field label="Reason"><textarea value={form.reason} onChange={set("reason")} required /></Field>
-      <label className="check"><input type="checkbox" checked={form.includes_bullying} onChange={set("includes_bullying")} /> Includes bullying</label>
+      <div className="check-group">
+        <label className="check"><input type="checkbox" checked={form.includes_bullying} onChange={set("includes_bullying")} /> {t("Includes bullying")}</label>
+      </div>
       <Button type="submit">Flag for support</Button>
     </form>
   );

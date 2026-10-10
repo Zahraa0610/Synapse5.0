@@ -626,8 +626,11 @@ function ShelterOverview({ data, reload, t }) {
           <Field label="Accessible spaces"><input type="number" min="0" value={form.accessible_spaces} onChange={set("accessible_spaces")} /></Field>
           <Field label="Backup power (hours/day)"><input type="number" min="0" max="24" value={form.electricity_hours} onChange={set("electricity_hours")} /></Field>
         </div>
-        <label className="check"><input type="checkbox" checked={form.accessible} onChange={set("accessible")} /> {t("Wheelchair accessible")}</label>
-        <label className="check"><input type="checkbox" checked={form.has_backup_power} onChange={set("has_backup_power")} /> {t("Backup power")}</label>
+        <fieldset className="check-group">
+          <legend>{t("Facilities")}</legend>
+          <label className="check"><input type="checkbox" checked={form.accessible} onChange={set("accessible")} /> {t("Wheelchair accessible")}</label>
+          <label className="check"><input type="checkbox" checked={form.has_backup_power} onChange={set("has_backup_power")} /> {t("Has backup power")}</label>
+        </fieldset>
         <ErrorText>{update.error}</ErrorText>
         <Button type="submit" disabled={update.busy}>Save</Button>
       </form>
@@ -741,24 +744,31 @@ function InventoryTable({ items, reload }) {
   );
 }
 
-function AddInventory({ shelterId, reload, equipment }) {
+function AddInventory({ shelterId, reload }) {
   const { t } = useI18n();
-  const [form, set, reset] = useForm({ item_name: "", category: equipment ? "equipment" : "medication", quantity: 0, unit: "units", status: "available", is_equipment: !!equipment, is_specialized: false });
+  const blank = { item_name: "", category: "medication", quantity: 0, unit: "units", status: "available", is_equipment: false, is_specialized: false };
+  const [form, set, reset] = useForm(blank);
   const action = useAction(reload);
   return (
-    <form className="card stack" onSubmit={async (e) => { e.preventDefault(); if (await action.run(`/shelters/${shelterId}/inventory`, "POST", form)) reset(); }}>
-      <h3>{t(equipment ? "Add equipment" : "Add item")}</h3>
+    <form className="card stack" onSubmit={async (e) => { e.preventDefault(); if (await action.run(`/shelters/${shelterId}/inventory`, "POST", { ...form, is_equipment: form.is_equipment || form.category === "equipment" })) reset(); }}>
+      <h3>{t("Add item")}</h3>
       <div className="grid-2">
-        <Field label="Item"><input value={form.item_name} onChange={set("item_name")} placeholder={equipment ? "e.g. Hospital bed" : "e.g. Baby formula"} required /></Field>
-        {!equipment && (
-          <Field label="Category">
-            <Select value={form.category} onChange={set("category")} options={["medication", "baby_formula", "sanitary", "food", "other"].map((value) => ({ value, label: value }))} />
-          </Field>
-        )}
+        <Field label="Item"><input value={form.item_name} onChange={set("item_name")} placeholder={t("e.g. Baby formula or Hospital bed")} required /></Field>
+        <Field label="Category">
+          <Select value={form.category} onChange={set("category")} options={[
+            { value: "medication", label: "Medication" }, { value: "baby_formula", label: "Baby formula" }, { value: "sanitary", label: "Sanitary products" },
+            { value: "food", label: "Food" }, { value: "equipment", label: "Medical equipment" }, { value: "other", label: "Other" },
+          ]} />
+        </Field>
         <Field label="Quantity"><input type="number" min="0" value={form.quantity} onChange={set("quantity")} /></Field>
+        <Field label="Unit"><input value={form.unit} onChange={set("unit")} placeholder={t("e.g. boxes, pens, beds")} /></Field>
         <Field label="Status"><Select value={form.status} onChange={set("status")} options={["available", "low", "shortage"].map((value) => ({ value, label: STATUS_LABELS[value] }))} /></Field>
       </div>
-      <label className="check"><input type="checkbox" checked={form.is_specialized} onChange={set("is_specialized")} /> {t("Specialized (e.g. for elderly or medically vulnerable residents)")}</label>
+      <fieldset className="check-group">
+        <legend>{t("Type")}</legend>
+        <label className="check"><input type="checkbox" checked={form.is_equipment || form.category === "equipment"} onChange={set("is_equipment")} /> {t("Medical equipment")}</label>
+        <label className="check"><input type="checkbox" checked={form.is_specialized} onChange={set("is_specialized")} /> {t("For elderly or medically vulnerable residents")}</label>
+      </fieldset>
       <ErrorText>{action.error}</ErrorText>
       <Button type="submit" disabled={action.busy}>Add item</Button>
     </form>
@@ -835,7 +845,9 @@ function Exchange({ data, reload, t }) {
           <Field label="Item"><input value={form.item_name} onChange={set("item_name")} required /></Field>
           <Field label="Quantity"><input type="number" min="1" value={form.quantity} onChange={set("quantity")} /></Field>
         </div>
-        <label className="check"><input type="checkbox" checked={form.needs_volunteer} onChange={set("needs_volunteer")} /> {t("Ask a volunteer to deliver it")}</label>
+        <div className="check-group">
+          <label className="check"><input type="checkbox" checked={form.needs_volunteer} onChange={set("needs_volunteer")} /> {t("Ask a volunteer to deliver it")}</label>
+        </div>
         <ErrorText>{create.error}</ErrorText>
         <Button type="submit" disabled={create.busy}>Propose exchange</Button>
       </form>
