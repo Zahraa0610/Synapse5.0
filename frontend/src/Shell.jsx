@@ -6,7 +6,7 @@ import { LangToggle, Mark } from "./ui";
 const PHONE_NAV = {
   caregiver: [
     ["/home", "Home"],
-    ["/passport", "Passport"],
+    ["/passport", "Health passport"],
     ["/care", "Care"],
     ["/requests", "Requests"],
     ["/me", "Profile"],
@@ -14,12 +14,13 @@ const PHONE_NAV = {
   volunteer: [
     ["/volunteer", "Tasks"],
     ["/volunteer/notices", "Notices"],
+    ["/volunteer/complaints", "Complaints"],
     ["/volunteer/support", "Support"],
     ["/me", "Profile"],
   ],
   donor: [
     ["/donor", "Needs"],
-    ["/donor/gifts", "My gifts"],
+    ["/donor/gifts", "My donations"],
     ["/me", "Profile"],
   ],
 };
@@ -28,17 +29,17 @@ const DESK_NAV = {
   shelter_coordinator: [
     ["/shelter", "Overview"],
     ["/shelter/residents", "Residents"],
-    ["/shelter/supplies", "Supplies"],
-    ["/shelter/shortages", "Shortages"],
+    ["/shelter/supplies", "Supplies and shortages"],
     ["/shelter/exchange", "Exchange"],
     ["/shelter/donations", "Donations"],
     ["/shelter/volunteers", "Volunteers"],
     ["/shelter/complaints", "Complaints"],
     ["/shelter/reports", "Reports"],
+    ["/lookup", "Find passport"],
   ],
-  doctor: [["/doctor", "Patients"]],
-  nurse: [["/doctor", "Patients"]],
-  psychologist: [["/doctor", "Patients"]],
+  doctor: [["/doctor", "Patients"], ["/lookup", "Find passport"]],
+  nurse: [["/doctor", "Patients"], ["/lookup", "Find passport"]],
+  psychologist: [["/doctor", "Patients"], ["/lookup", "Find passport"]],
   ministry: [
     ["/ministry", "Overview"],
     ["/ministry/shelters", "Shelters"],
@@ -119,10 +120,12 @@ export function roleLabel(role) {
   }[role] || role;
 }
 
-export function Guard({ children }) {
+export function Guard({ children, roles }) {
   const { user, ready } = useAuth();
   if (!ready) return <div className="app-loading">Ma'ak</div>;
   if (!user) return <Navigate to="/login" replace />;
+  // A signed-in user opening another role's page goes back to their own home.
+  if (roles && !roles.includes(user.role)) return <Navigate to={homeFor(user.role)} replace />;
   return children;
 }
 

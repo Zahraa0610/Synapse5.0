@@ -310,9 +310,16 @@ def create_relocation():
     reason = (data.get("reason") or "").strip()
     if not reason:
         return error("Describe why a move is needed", 400)
-    origin_id = profile.shelter_id or g.user.shelter_id
+    # People not yet living in a shelter can still ask to move into one:
+    # the receiving shelter then handles the request.
+    origin_id = profile.shelter_id or g.user.shelter_id or (destination.id if destination else None)
     if not origin_id:
-        return error("This profile is not linked to a shelter yet", 400)
+        return error("Choose the shelter you want to move to", 400)
+    if destination and destination.id == profile.shelter_id:
+        return error("This person is already at that shelter", 400)
+    open_request = Relocation.query.filter_by(profile_id=profile.id, destination_shelter_id=destination.id if destination else None, status="requested").first()
+    if open_request:
+        return jsonify({"relocation": _relocation(open_request)}), 200
     item = Relocation(
         shelter_id=origin_id,
         destination_shelter_id=destination.id if destination else None,

@@ -7,6 +7,8 @@ from .domain import (
     CLINICAL,
     age_years,
     can_view_passport,
+    can_write_passport,
+    profile_id_from_passport_id,
     criticality_for,
     iso,
     profile_public,
@@ -15,7 +17,6 @@ from .domain import (
 from .extensions import db
 from .http import error, login_required, parse_date, payload, save_upload
 from .models import (
-    AccessGrant,
     Announcement,
     Appointment,
     Attachment,
@@ -195,33 +196,33 @@ def delete_profile(profile_id):
     return jsonify({"ok": True})
 
 
+def _passport_payload(profile):
+    entries = MedicalEntry.query.filter_by(profile_id=profile.id).order_by(MedicalEntry.occurred_on.desc()).all()
+    return {
+        "profile": profile_public(profile),
+        "entries": [_entry_json(entry) for entry in entries],
+        "can_edit": can_write_passport(g.user, profile),
+    }
+
+
 @passport_bp.get("/profiles/<int:profile_id>/passport")
 @login_required()
 def passport(profile_id):
     profile = db.session.get(Profile, profile_id)
-    if not profile or not can_view_passport(g.user, profile):
-        return error("You do not have access to this health passport", 403)
-    entries = MedicalEntry.query.filter_by(profile_id=profile.id).order_by(MedicalEntry.occurred_on.desc()).all()
-    grants = AccessGrant.query.filter_by(profile_id=profile.id, status="active").all()
-    grant_rows = []
-    for grant in grants:
-        person = db.session.get(User, grant.grantee_user_id)
-        grant_rows.append(
-            {
-                "id": grant.id,
-                "grantee_user_id": grant.grantee_user_id,
-                "name": person.full_name if person else "Clinician",
-                "role": person.role if person else None,
-                "specialty": person.specialty if person else None,
-            }
-        )
-    return jsonify(
-        {
-            "profile": profile_public(profile),
-            "entries": [_entry_json(entry) for entry in entries],
-            "grants": grant_rows,
-        }
-    )
+    if not profile:
+        return error("Health passport not found", 404)
+    return jsonify(_passport_payload(profile))
+
+
+@passport_bp.get("/passport/lookup/<passport_id>")
+@login_required()
+def passport_lookup(passport_id):
+    """Open any health passport with its ID, e.g. MAK-0012-6059."""
+    pid = profile_id_from_passport_id(passport_id)
+    profile = db.session.get(Profile, pid) if pid else None
+    if not profile:
+        return error("No health passport has this ID. Check the ID and try again.", 404)
+    return jsonify(_passport_payload(profile))
 
 
 @passport_bp.post("/profiles/<int:profile_id>/entries")
@@ -237,7 +238,7 @@ def add_entry(profile_id):
         return error("Choose a record type and a title", 400)
     if _owned(profile):
         author_type = "patient"
-    elif g.user.role in CLINICAL and g.user.verification_status == "approved" and can_view_passport(g.user, profile):
+    elif can_write_passport(g.user, profile):
         author_type = "clinician"
     else:
         return error("You cannot add to this health passport", 403)
@@ -268,7 +269,7 @@ def update_entry(entry_id):
     if not entry:
         return error("Record not found", 404)
     profile = db.session.get(Profile, entry.profile_id)
-    if entry.author_user_id != g.user.id or not can_view_passport(g.user, profile):
+    if entry.author_user_id != g.user.id:
         return error("You can edit records you wrote", 403)
     data = payload()
     for field in ("title", "details", "facility_name", "doctor_name", "result_text"):
@@ -305,8 +306,6 @@ def add_attachment(entry_id):
     if not entry:
         return error("Record not found", 404)
     profile = db.session.get(Profile, entry.profile_id)
-    if not can_view_passport(g.user, profile):
-        return error("You do not have access to this health passport", 403)
     if not _owned(profile) and entry.author_user_id != g.user.id:
         return error("Attach files to a record you can edit", 403)
     try:
@@ -339,46 +338,6 @@ def download_attachment(attachment_id):
         return error("You do not have access to this file", 403)
     folder = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "uploads"))
     return send_from_directory(folder, attachment.stored_name, download_name=attachment.filename)
-
-
-@passport_bp.post("/profiles/<int:profile_id>/grants")
-@login_required({"caregiver"})
-def grant_access(profile_id):
-    profile = db.session.get(Profile, profile_id)
-    if not profile or not _owned(profile):
-        return error("You do not have access to this profile", 403)
-    clinician = db.session.get(User, int(payload().get("grantee_user_id") or 0))
-    if not clinician or clinician.role not in CLINICAL or clinician.verification_status != "approved":
-        return error("Choose an approved clinician", 400)
-    existing = AccessGrant.query.filter_by(profile_id=profile.id, grantee_user_id=clinician.id).first()
-    if existing:
-        existing.status = "active"
-        existing.granted_by_user_id = g.user.id
-    else:
-        db.session.add(
-            AccessGrant(
-                profile_id=profile.id,
-                grantee_user_id=clinician.id,
-                granted_by_user_id=g.user.id,
-                status="active",
-            )
-        )
-    db.session.commit()
-    return jsonify({"ok": True})
-
-
-@passport_bp.post("/grants/<int:grant_id>/revoke")
-@login_required({"caregiver"})
-def revoke_grant(grant_id):
-    grant = db.session.get(AccessGrant, grant_id)
-    if not grant:
-        return error("Access grant not found", 404)
-    profile = db.session.get(Profile, grant.profile_id)
-    if not _owned(profile):
-        return error("You do not have access to this profile", 403)
-    grant.status = "revoked"
-    db.session.commit()
-    return jsonify({"ok": True})
 
 
 def _emergency_body(profile):

@@ -13,6 +13,23 @@ from .routes_shelter import shelter_bp
 from .seed import seed
 
 
+def _check_schema():
+    """Stop with a clear message when maak.db was made by an older version of the app."""
+    from sqlalchemy import inspect
+
+    inspector = inspect(db.engine)
+    missing = []
+    for table in db.metadata.sorted_tables:
+        existing = {column["name"] for column in inspector.get_columns(table.name)}
+        missing += [f"{table.name}.{column.name}" for column in table.columns if column.name not in existing]
+    if missing:
+        raise SystemExit(
+            "\n\nYour database (backend/maak.db) is from an older version of Ma'ak.\n"
+            "Delete backend/maak.db and start the backend again; demo data is recreated.\n"
+            f"Missing columns: {', '.join(missing[:6])}{' ...' if len(missing) > 6 else ''}\n"
+        )
+
+
 def create_app():
     app = Flask(__name__)
     base = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -36,5 +53,6 @@ def create_app():
 
     with app.app_context():
         db.create_all()
+        _check_schema()
         seed()
     return app

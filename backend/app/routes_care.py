@@ -11,12 +11,13 @@ from .models import (
     PersonalSupply,
     Pregnancy,
     Profile,
+    Relocation,
     Shelter,
 )
 
 care_bp = Blueprint("care", __name__)
 
-DEPENDENCY_KINDS = ["oxygen", "electricity", "ventilator", "concentrator", "suction", "feeding"]
+DEPENDENCY_KINDS = ["oxygen", "electricity", "ventilator", "concentrator", "suction", "feeding", "other"]
 SUPPLY_CATEGORIES = ["food", "formula", "sanitary", "specialized_nutrition", "other"]
 
 
@@ -32,10 +33,6 @@ def care(profile_id):
         return error("You do not have access to this care record", 403)
     if g.user.role == "shelter_coordinator" and profile.shelter_id != g.user.shelter_id:
         return error("You do not have access to this care record", 403)
-    from .domain import can_view_passport
-
-    if g.user.role in {"doctor", "nurse"} and not can_view_passport(g.user, profile):
-        return error("This patient has not granted you access", 403)
     return jsonify(_care_payload(profile))
 
 
@@ -51,6 +48,10 @@ def _care_payload(profile):
         "seats": [_seat(item) for item in DialysisSeat.query.order_by(DialysisSeat.seats_available.desc()).all()],
         "pregnancy": _pregnancy(pregnancy),
         "backup_shelters": [shelter_public(item) for item in shelters],
+        "relocations": [
+            {"id": item.id, "destination_shelter_id": item.destination_shelter_id, "status": item.status}
+            for item in Relocation.query.filter_by(profile_id=profile.id).all()
+        ],
     }
 
 
@@ -120,6 +121,8 @@ def add_dependency(profile_id):
     kind = (data.get("kind") or "").strip()
     if kind not in DEPENDENCY_KINDS:
         return error("Choose the kind of medical dependency", 400)
+    if kind == "other" and not (data.get("device_name") or "").strip():
+        return error("Write the name of the device", 400)
     item = Dependency(
         profile_id=profile.id,
         kind=kind,
@@ -288,10 +291,6 @@ def review_criticality(profile_id):
     if g.user.role == "shelter_coordinator" and profile.shelter_id != g.user.shelter_id:
         return error("This resident is not at your shelter", 403)
     if g.user.role in {"doctor", "nurse"}:
-        from .domain import can_view_passport
-
-        if not can_view_passport(g.user, profile):
-            return error("This patient has not granted you access", 403)
         if g.user.verification_status != "approved":
             return error("Your credentials are still under review", 403)
     data = payload()

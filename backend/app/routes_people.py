@@ -74,9 +74,9 @@ def _visible_flags():
         return SupportFlag.query.filter_by(flagged_by=g.user.id).all()
     if g.user.role == "shelter_coordinator" and g.user.shelter_id:
         ids = [profile.id for profile in Profile.query.filter_by(shelter_id=g.user.shelter_id).all()]
-        if not ids:
-            return []
-        return SupportFlag.query.filter(SupportFlag.profile_id.in_(ids)).all()
+        return SupportFlag.query.filter(
+            (SupportFlag.shelter_id == g.user.shelter_id) | (SupportFlag.profile_id.in_(ids or [0]))
+        ).all()
     return []
 
 
@@ -118,10 +118,14 @@ def _appointment(item):
 
 
 def _flag(item):
+    shelter = db.session.get(Shelter, item.shelter_id) if item.shelter_id else None
     return {
         "id": item.id,
         "profile_id": item.profile_id,
-        "who": _profile_name(item.profile_id),
+        "who": item.person_description or _profile_name(item.profile_id),
+        "registered_name": _profile_name(item.profile_id),
+        "signs": item.signs.split(" · ") if item.signs else [],
+        "shelter_name": shelter.name if shelter else None,
         "reason": item.reason,
         "includes_bullying": item.includes_bullying,
         "status": item.status,
@@ -213,7 +217,7 @@ def update_transport(item_id):
     status = (payload().get("status") or "").strip()
     if status not in {"accepted", "completed", "cancelled"}:
         return error("Choose a status", 400)
-    provider = g.user.role == "ngo" or (g.user.role == "volunteer" and g.user.helper_type == "transport")
+    provider = g.user.role == "ngo" or (g.user.role == "volunteer" and (g.user.helper_type == "transport" or g.user.offers_driving))
     owner = _owns_transport(item)
     if status in {"accepted", "completed"} and not provider and g.user.role != "shelter_coordinator":
         return error("A transport provider accepts this request", 403)
@@ -259,22 +263,37 @@ def roster():
 @people_bp.post("/support-flags")
 @login_required({"caregiver", "volunteer", "shelter_coordinator"})
 def add_flag():
+    """Report a case that needs mental health support.
+    The person is described in words; linking a registered profile is optional."""
     data = payload()
-    profile = db.session.get(Profile, int(data.get("profile_id") or 0))
-    if not profile:
-        return error("Choose a person", 400)
-    if g.user.role == "caregiver" and profile.owner_user_id != g.user.id:
-        return error("You can flag people on your own profiles", 403)
-    if g.user.role == "shelter_coordinator" and profile.shelter_id != g.user.shelter_id:
-        return error("This resident is not at your shelter", 403)
+    profile = None
+    if data.get("profile_id"):
+        profile = db.session.get(Profile, int(data.get("profile_id")))
+        if not profile:
+            return error("That person is not registered", 400)
+        if g.user.role == "caregiver" and profile.owner_user_id != g.user.id:
+            return error("You can flag people on your own profiles", 403)
+        if g.user.role == "shelter_coordinator" and profile.shelter_id != g.user.shelter_id:
+            return error("This resident is not at your shelter", 403)
+    person = (data.get("person_description") or "").strip()
+    if not profile and not person:
+        return error("Say who needs support", 400)
     reason = (data.get("reason") or "").strip()
     if not reason:
-        return error("Describe the support need", 400)
+        return error("Write a short description of the case", 400)
+    signs = data.get("signs") or []
+    if isinstance(signs, str):
+        signs = [part.strip() for part in signs.split("·") if part.strip()]
+    shelter_id = data.get("shelter_id") or (profile.shelter_id if profile else None) or g.user.shelter_id
     item = SupportFlag(
-        profile_id=profile.id,
+        profile_id=profile.id if profile else None,
+        person_description=person or None,
+        shelter_id=int(shelter_id) if shelter_id else None,
+        signs=" · ".join(signs) or None,
         flagged_by=g.user.id,
         reason=reason,
-        includes_bullying=str(data.get("includes_bullying", "")).lower() in {"1", "true", "yes", "on"},
+        includes_bullying=str(data.get("includes_bullying", "")).lower() in {"1", "true", "yes", "on"}
+        or any("ullying" in sign for sign in signs),
     )
     db.session.add(item)
     db.session.commit()
@@ -504,6 +523,7 @@ def _donation(item):
         "region": shelter.region if shelter else None,
         "target_profile_id": item.target_profile_id,
         "cause_label": item.cause_label,
+        "donation_request_id": item.donation_request_id,
         "status": item.status,
         "from_recommendation": item.from_recommendation,
         "created_at": iso(item.created_at),
@@ -516,12 +536,21 @@ def give():
     data = payload()
     kind = (data.get("kind") or "").strip()
     target_type = (data.get("target_type") or "").strip()
-    if kind not in {"money", "physical"} or target_type not in {"shelter", "case", "cause"}:
+    if kind not in {"money", "physical"} or target_type not in {"shelter", "case", "cause", "request"}:
         return error("Choose money or supplies, and a recipient", 400)
     shelter_id = data.get("target_shelter_id") or None
     profile_id = data.get("target_profile_id") or None
     cause = (data.get("cause_label") or "").strip() or None
-    if not shelter_id and not profile_id and not cause:
+    request_id = data.get("donation_request_id") or None
+    if target_type == "request":
+        from .models import DonationRequest
+
+        request_row = db.session.get(DonationRequest, int(request_id or 0))
+        if not request_row or request_row.status != "open":
+            return error("This request is no longer open", 400)
+        profile_id = request_row.profile_id
+        cause = cause or f"Family in {request_row.area or request_row.region}"
+    if not shelter_id and not profile_id and not cause and not request_id:
         return error("Choose a recipient before giving", 400)
     if shelter_id and not db.session.get(Shelter, int(shelter_id)):
         return error("That shelter is not registered", 400)
@@ -547,6 +576,7 @@ def give():
         target_profile_id=int(profile_id) if profile_id else None,
         cause_label=cause,
         from_recommendation=str(data.get("from_recommendation", "")).lower() in {"1", "true", "yes", "on"},
+        donation_request_id=int(request_id) if target_type == "request" else None,
         status="pledged",
     )
     db.session.add(item)
@@ -577,3 +607,109 @@ def update_donation(item_id):
 @login_required({"ministry"}, approved=True)
 def distribution_view():
     return jsonify({"rows": distribution(), "note": "Compare gifts already recorded with shortages shelters still report."})
+
+
+# ---------------------------------------------------------------------------
+# Donation requests from displaced families outside the shelters
+# ---------------------------------------------------------------------------
+
+LIVING_SITUATIONS = {"tent", "renting", "host_family", "unfinished_building", "car", "other"}
+REQUEST_CATEGORIES = {"food", "medicine", "baby", "hygiene", "blankets", "clothes", "rent", "other"}
+REGIONS = {"Beirut", "Mount Lebanon", "North", "Akkar", "Bekaa", "Baalbek-Hermel", "South", "Nabatieh"}
+
+
+def _donation_request(item, include_gifts=False):
+    data = {
+        "id": item.id,
+        "profile_id": item.profile_id,
+        "who": _profile_name(item.profile_id),
+        "living_situation": item.living_situation,
+        "region": item.region,
+        "area": item.area,
+        "category": item.category,
+        "description": item.description,
+        "people_count": item.people_count,
+        "status": item.status,
+        "created_at": iso(item.created_at),
+    }
+    if include_gifts:
+        data["donations"] = [_donation(gift) for gift in Donation.query.filter_by(donation_request_id=item.id).all()]
+    return data
+
+
+@people_bp.post("/donation-requests")
+@login_required({"caregiver"})
+def add_donation_request():
+    from .models import DonationRequest
+
+    data = payload()
+    situation = (data.get("living_situation") or "").strip()
+    category = (data.get("category") or "").strip()
+    region = (data.get("region") or "").strip()
+    description = (data.get("description") or "").strip()
+    if situation not in LIVING_SITUATIONS:
+        return error("Choose where you are staying", 400)
+    if region not in REGIONS:
+        return error("Choose your region", 400)
+    if category not in REQUEST_CATEGORIES or not description:
+        return error("Choose what you need and describe it", 400)
+    profile_id = data.get("profile_id") or None
+    if profile_id:
+        profile = db.session.get(Profile, int(profile_id))
+        if not profile or profile.owner_user_id != g.user.id:
+            return error("Choose one of your family profiles", 400)
+    people = str(data.get("people_count") or "").strip()
+    item = DonationRequest(
+        requester_user_id=g.user.id,
+        profile_id=int(profile_id) if profile_id else None,
+        living_situation=situation,
+        region=region,
+        area=(data.get("area") or "").strip() or None,
+        category=category,
+        description=description,
+        people_count=int(people) if people.isdigit() else None,
+        status="open",
+    )
+    db.session.add(item)
+    db.session.commit()
+    return jsonify({"request": _donation_request(item, include_gifts=True)}), 201
+
+
+@people_bp.get("/donation-requests/mine")
+@login_required({"caregiver"})
+def my_donation_requests():
+    from .models import DonationRequest
+
+    rows = DonationRequest.query.filter_by(requester_user_id=g.user.id).order_by(DonationRequest.created_at.desc()).all()
+    return jsonify({"requests": [_donation_request(item, include_gifts=True) for item in rows]})
+
+
+@people_bp.patch("/donation-requests/<int:item_id>")
+@login_required({"caregiver"})
+def update_donation_request(item_id):
+    from .models import DonationRequest
+
+    item = db.session.get(DonationRequest, item_id)
+    if not item or item.requester_user_id != g.user.id:
+        return error("Request not found", 404)
+    status = (payload().get("status") or "").strip()
+    if status not in {"open", "fulfilled", "closed"}:
+        return error("Choose a status", 400)
+    item.status = status
+    db.session.commit()
+    return jsonify({"request": _donation_request(item, include_gifts=True)})
+
+
+@people_bp.post("/donations/<int:item_id>/received")
+@login_required({"caregiver"})
+def confirm_received(item_id):
+    """The family that asked for help confirms a gift arrived."""
+    from .models import DonationRequest
+
+    gift = db.session.get(Donation, item_id)
+    request_row = db.session.get(DonationRequest, gift.donation_request_id) if gift and gift.donation_request_id else None
+    if not request_row or request_row.requester_user_id != g.user.id:
+        return error("This gift is not for your request", 403)
+    gift.status = "received"
+    db.session.commit()
+    return jsonify({"donation": _donation(gift)})

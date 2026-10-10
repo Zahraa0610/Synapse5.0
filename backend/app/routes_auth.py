@@ -30,6 +30,19 @@ def register():
     if phone and User.query.filter_by(phone=phone).first():
         return error("An account with this phone number already exists", 409)
 
+    # Volunteers identify themselves with a Lebanese ID or passport (no license).
+    id_type = (data.get("id_document_type") or "").strip() or None
+    id_number = (data.get("id_document_number") or "").strip() or None
+    offers_driving = as_bool(data.get("offers_driving"))
+    car_model = (data.get("car_model") or "").strip() or None
+    car_plate = (data.get("car_plate") or "").strip() or None
+    if role == "volunteer":
+        if id_type not in {"lebanese_id", "passport"} or not id_number:
+            return error("Enter your Lebanese ID or passport number", 400)
+        if offers_driving and (not car_model or not car_plate):
+            return error("Enter your car model and plate number", 400)
+
+    # Only doctors, nurses and psychologists go through the license check.
     if role in CLINICAL:
         status = "documents_received"
     elif role in {"ministry", "ngo"}:
@@ -56,7 +69,14 @@ def register():
         license_expires=parse_date(data.get("license_expires")),
         verification_status=status,
         helper_type=(data.get("helper_type") or "").strip() or None,
-        shelter_id=shelter_id if role == "shelter_coordinator" else None,
+        shelter_id=shelter_id if role in {"shelter_coordinator", "caregiver"} else None,
+        id_document_type=id_type if role == "volunteer" else None,
+        id_document_number=id_number if role == "volunteer" else None,
+        offers_driving=offers_driving if role == "volunteer" else False,
+        car_model=car_model if role == "volunteer" and offers_driving else None,
+        car_plate=car_plate if role == "volunteer" and offers_driving else None,
+        car_seats=int(data.get("car_seats")) if role == "volunteer" and offers_driving and str(data.get("car_seats") or "").isdigit() else None,
+        car_wheelchair=as_bool(data.get("car_wheelchair")) if role == "volunteer" and offers_driving else False,
     )
     db.session.add(user)
     db.session.commit()

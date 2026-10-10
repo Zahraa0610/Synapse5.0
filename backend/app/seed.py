@@ -5,7 +5,6 @@ from werkzeug.security import generate_password_hash
 
 from .extensions import db
 from .models import (
-    AccessGrant,
     Announcement,
     Appointment,
     Complaint,
@@ -14,10 +13,12 @@ from .models import (
     DialysisSeat,
     DialysisSession,
     Donation,
+    DonationRequest,
     HistorySnapshot,
     InventoryItem,
     MedicalEntry,
     NgoRequest,
+    Outbreak,
     PersonalSupply,
     Pregnancy,
     Profile,
@@ -90,6 +91,8 @@ def seed():
         "volunteer",
         helper_type="companion",
         verification_status="not_required",
+        id_document_type="lebanese_id",
+        id_document_number="LB-00451287",
     )
     user(
         "Karim Daoud",
@@ -97,6 +100,12 @@ def seed():
         "+96170111003",
         "volunteer",
         helper_type="transport",
+        id_document_type="passport",
+        id_document_number="RL1234567",
+        offers_driving=True,
+        car_model="Kia Picanto (white)",
+        car_plate="B 123456",
+        car_seats=3,
     )
     nadine = user(
         "Nadine Saab",
@@ -325,15 +334,6 @@ def seed():
         occurred_on=today - timedelta(days=12),
     )
 
-    db.session.add(
-        AccessGrant(profile_id=salma.id, grantee_user_id=nadine.id, granted_by_user_id=rania.id)
-    )
-    db.session.add(
-        AccessGrant(profile_id=nabil.id, grantee_user_id=nadine.id, granted_by_user_id=rania.id)
-    )
-    db.session.add(
-        AccessGrant(profile_id=rania_profile.id, grantee_user_id=nadine.id, granted_by_user_id=rania.id)
-    )
 
     db.session.add(
         Dependency(
@@ -698,6 +698,9 @@ def seed():
     db.session.add(
         SupportFlag(
             profile_id=census_profiles[2].id,
+            person_description="Boy, about 9, classroom B",
+            shelter_id=census_profiles[2].shelter_id,
+            signs="Bullying of a child with a disability · Withdrawn or constantly sad",
             flagged_by=rana.id,
             reason="Child has been bullied in the shared classroom and stopped speaking at meals.",
             includes_bullying=True,
@@ -865,5 +868,20 @@ def seed():
                     critical_count=2 + (index % 4),
                 )
             )
+
+    # A displaced family renting outside the shelters asks for help.
+    hussein = user("Hussein Ali", "hussein@maak.test", "+96170111011", "caregiver")
+    db.session.add(
+        DonationRequest(
+            requester_user_id=hussein.id,
+            living_situation="renting",
+            region="South",
+            area="Saida, Old City",
+            category="food",
+            description="Family of 6 renting one room. We need food parcels and baby formula for a 1-year-old.",
+            people_count=6,
+            status="open",
+        )
+    )
 
     db.session.commit()

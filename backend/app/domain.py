@@ -2,7 +2,6 @@ from datetime import date, datetime, timezone
 
 from .extensions import db
 from .models import (
-    AccessGrant,
     Complaint,
     CriticalityReview,
     Dependency,
@@ -14,6 +13,7 @@ from .models import (
     Pregnancy,
     Profile,
     Shelter,
+    SupportFlag,
     User,
 )
 
@@ -66,7 +66,15 @@ def user_public(user):
         "verification_status": user.verification_status,
         "helper_type": user.helper_type,
         "shelter_id": user.shelter_id,
+        "shelter_name": (db.session.get(Shelter, user.shelter_id).name if user.shelter_id and db.session.get(Shelter, user.shelter_id) else None),
         "has_license_file": bool(user.license_file),
+        "id_document_type": user.id_document_type,
+        "id_document_number": user.id_document_number,
+        "offers_driving": bool(user.offers_driving),
+        "car_model": user.car_model,
+        "car_plate": user.car_plate,
+        "car_seats": user.car_seats,
+        "car_wheelchair": bool(user.car_wheelchair),
     }
 
 
@@ -162,11 +170,29 @@ def public_need_reasons(profile):
     return reasons
 
 
+def passport_id_for(profile):
+    """Readable passport ID, e.g. MAK-0012-4821. The second block is a check
+    number so a typo in the first block is caught instead of opening someone else."""
+    return f"MAK-{profile.id:04d}-{(profile.id * 7919 + 1031) % 10000:04d}"
+
+
+def profile_id_from_passport_id(text):
+    """Turn 'MAK-0012-4821' (any case, spaces allowed) back into 12, or None."""
+    parts = str(text or "").strip().upper().replace(" ", "").split("-")
+    if len(parts) != 3 or parts[0] != "MAK" or not parts[1].isdigit() or not parts[2].isdigit():
+        return None
+    pid = int(parts[1])
+    if f"{(pid * 7919 + 1031) % 10000:04d}" != parts[2].zfill(4):
+        return None
+    return pid
+
+
 def profile_public(profile, include_contact=True):
     shelter = db.session.get(Shelter, profile.shelter_id) if profile.shelter_id else None
     crit = criticality_for(profile)
     data = {
         "id": profile.id,
+        "passport_id": passport_id_for(profile),
         "full_name": profile.full_name,
         "relationship": profile.relationship,
         "date_of_birth": iso(profile.date_of_birth),
@@ -192,6 +218,7 @@ def roster_row(profile):
     crit = criticality_for(profile)
     return {
         "id": profile.id,
+        "passport_id": passport_id_for(profile),
         "full_name": profile.full_name,
         "age": age_years(profile.date_of_birth),
         "relationship": profile.relationship,
@@ -202,16 +229,16 @@ def roster_row(profile):
 
 
 def can_view_passport(user, profile):
-    if user.role in {"ministry", "ngo", "donor"}:
-        return False
+    """Any signed-in user who has the passport ID can read the passport.
+    (There is no per-patient access list any more.)"""
+    return user is not None and profile is not None
+
+
+def can_write_passport(user, profile):
+    """The family that owns the profile, or an approved clinician, can add records."""
     if profile.owner_user_id and profile.owner_user_id == user.id:
         return True
-    if user.role in CLINICAL and user.verification_status == "approved":
-        grant = AccessGrant.query.filter_by(
-            profile_id=profile.id, grantee_user_id=user.id, status="active"
-        ).first()
-        return grant is not None
-    return False
+    return user.role in CLINICAL and user.verification_status == "approved"
 
 
 def priority_for(shelter):
@@ -342,6 +369,31 @@ def opportunities():
                 "item_description": reasons[0] if reasons else "medical supplies",
             }
         )
+    from .models import DonationRequest
+
+    for req in DonationRequest.query.filter_by(status="open").all():
+        items.append(
+            {
+                "key": f"request-{req.id}",
+                "kind": "request",
+                "title": f"{req.category.replace('_', ' ').capitalize()} for a family",
+                "detail": req.description,
+                "living_situation": req.living_situation,
+                "people_count": req.people_count,
+                "shelter_id": None,
+                "shelter_name": None,
+                "region": req.region,
+                "area": req.area,
+                "urgency": 2,
+                "verified": False,
+                "confirmed": False,
+                "target_type": "request",
+                "target_shelter_id": None,
+                "target_profile_id": req.profile_id,
+                "donation_request_id": req.id,
+                "item_description": req.description[:120],
+            }
+        )
     items.sort(key=lambda row: (-row["urgency"], row["title"]))
     if items:
         items[0]["recommended"] = True
@@ -351,6 +403,7 @@ def opportunities():
 
 
 def forecast():
+    record_all_shelters()
     shelters = {shelter.id: shelter for shelter in Shelter.query.all()}
     by_region = {}
     for snap in HistorySnapshot.query.order_by(HistorySnapshot.month.asc()).all():
@@ -390,7 +443,43 @@ def forecast():
     return rows
 
 
+def record_current_month(shelter_id):
+    """Write this month's report row for a shelter from live data.
+    Called whenever reports are viewed, so the monthly report builds itself:
+    the row for the current month keeps updating until the month ends,
+    then stays as history and a new month's row starts."""
+    shelter = db.session.get(Shelter, shelter_id)
+    if not shelter:
+        return
+    today = datetime.now(timezone.utc)
+    month = month_key(today)
+    start = datetime(today.year, today.month, 1, tzinfo=timezone.utc)
+    residents = Profile.query.filter_by(shelter_id=shelter_id).all()
+    complaints_this_month = sum(
+        1 for c in Complaint.query.filter_by(shelter_id=shelter_id).all() if c.created_at and aware(c.created_at) >= start
+    )
+    values = {
+        "shortage_count": InventoryItem.query.filter_by(shelter_id=shelter_id, status="shortage").count(),
+        "occupancy": shelter.occupancy or 0,
+        "complaint_count": complaints_this_month,
+        "critical_count": sum(1 for person in residents if criticality_for(person)["level"] == "critical"),
+    }
+    snap = HistorySnapshot.query.filter_by(shelter_id=shelter_id, month=month).first()
+    if not snap:
+        snap = HistorySnapshot(shelter_id=shelter_id, month=month)
+        db.session.add(snap)
+    for key, value in values.items():
+        setattr(snap, key, value)
+    db.session.commit()
+
+
+def record_all_shelters():
+    for shelter in Shelter.query.all():
+        record_current_month(shelter.id)
+
+
 def history_for_shelter(shelter_id):
+    record_current_month(shelter_id)
     snaps = (
         HistorySnapshot.query.filter_by(shelter_id=shelter_id)
         .order_by(HistorySnapshot.month.asc())
@@ -462,16 +551,28 @@ def _add_risk(row, flags):
 
 
 def distribution():
+    """Compare each shelter's current shortages with the gifts recorded for it.
+    Everything is read live from the database: InventoryItem rows marked
+    "shortage" and Donation rows targeted at the shelter."""
+    arrived = {"received", "allocated", "distributed"}
     rows = []
     for shelter in Shelter.query.order_by(Shelter.name.asc()).all():
         shortages = InventoryItem.query.filter_by(shelter_id=shelter.id, status="shortage").all()
         donations = Donation.query.filter_by(target_shelter_id=shelter.id).all()
-        money = sum(donation.amount or 0 for donation in donations if donation.kind == "money")
-        physical = [donation.item_description for donation in donations if donation.kind == "physical"]
-        gaps = []
+        money = sum(d.amount or 0 for d in donations if d.kind == "money" and d.status in arrived)
+        received_items = [d.item_description or "" for d in donations if d.kind == "physical" and d.status in arrived]
+        pledged_items = [d.item_description or "" for d in donations if d.kind == "physical" and d.status == "pledged"]
+
+        def mentioned(name, descriptions):
+            return any(name.lower() in desc.lower() or desc.lower() in name.lower() for desc in descriptions if desc)
+
+        gaps, pledged_only = [], []
         for item in shortages:
-            covered = any(item.item_name.lower() in (desc or "").lower() for desc in physical)
-            if not covered:
+            if mentioned(item.item_name, received_items):
+                continue
+            if mentioned(item.item_name, pledged_items):
+                pledged_only.append(item.item_name)
+            else:
                 gaps.append(item.item_name)
         rows.append(
             {
@@ -481,9 +582,11 @@ def distribution():
                 "shortage_count": len(shortages),
                 "donation_count": len(donations),
                 "money": money,
-                "physical": physical,
+                "physical": received_items,
                 "gaps": gaps,
-                "underserved": len(gaps) > 0 and money < 100,
+                "pledged_only": pledged_only,
+                # Underserved: some shortages have no gift at all, not even a promise.
+                "underserved": len(gaps) > 0,
             }
         )
     rows.sort(key=lambda row: (-len(row["gaps"]), -row["shortage_count"]))
@@ -493,10 +596,11 @@ def distribution():
 def support_counts():
     rows = {}
     for flag in SupportFlag.query.all():
-        profile = db.session.get(Profile, flag.profile_id)
-        if not profile or not profile.shelter_id:
+        profile = db.session.get(Profile, flag.profile_id) if flag.profile_id else None
+        shelter_id = flag.shelter_id or (profile.shelter_id if profile else None)
+        if not shelter_id:
             continue
-        shelter = db.session.get(Shelter, profile.shelter_id)
+        shelter = db.session.get(Shelter, shelter_id)
         bucket = rows.setdefault(
             shelter.id,
             {"shelter_id": shelter.id, "shelter_name": shelter.name, "region": shelter.region, "open": 0, "total": 0},
