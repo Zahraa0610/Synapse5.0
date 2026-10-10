@@ -17,6 +17,7 @@ from .models import (
     InventoryItem,
     MedicalEntry,
     NgoRequest,
+    Outbreak,
     PersonalSupply,
     Pregnancy,
     Profile,
