@@ -806,37 +806,46 @@ function AddInventory({ shelterId, reload }) {
   );
 }
 
+const SUPPLY_FILTERS = [
+  ["all", "All items"],
+  ["missing", "Low or missing"],
+  ["equipment", "Medical equipment"],
+];
+
+// Supplies and shortages on one page, with filters.
 export function ShelterSuppliesPage() {
+  const startOnShortages = window.location.pathname.endsWith("/shortages");
   return (
-    <ShelterFrame title="Supplies" sub="Medication, baby formula, sanitary products, food and other essentials.">
-      {(data, reload) => (
-        <>
-          <section className="card"><InventoryTable items={data.inventory.filter((i) => !i.is_equipment)} reload={reload} /></section>
-          <AddInventory shelterId={data.shelter.id} reload={reload} />
-        </>
-      )}
+    <ShelterFrame title="Supplies and shortages" sub="Medication, baby formula, sanitary products, food, and medical equipment.">
+      {(data, reload) => <SupplyBoard data={data} reload={reload} initial={startOnShortages ? "missing" : "all"} />}
     </ShelterFrame>
   );
 }
 
-export function ShelterShortagesPage() {
+function SupplyBoard({ data, reload, initial }) {
   const { t } = useI18n();
+  const [filter, setFilter] = useState(initial);
+  const items = data.inventory;
+  const missing = items.filter((i) => i.status !== "available");
+  const shown = filter === "missing" ? missing : filter === "equipment" ? items.filter((i) => i.is_equipment) : items;
   return (
-    <ShelterFrame title="Shortages" sub="What is low or missing, including specialized medical equipment.">
-      {(data, reload) => (
-        <>
-          <section className="card stack">
-            <h3>{t("Low or missing supplies")}</h3>
-            <InventoryTable items={data.inventory.filter((i) => !i.is_equipment && i.status !== "available")} reload={reload} />
-          </section>
-          <section className="card stack">
-            <h3>{t("Medical equipment")}</h3>
-            <InventoryTable items={data.inventory.filter((i) => i.is_equipment)} reload={reload} />
-          </section>
-          <AddInventory shelterId={data.shelter.id} reload={reload} equipment />
-        </>
-      )}
-    </ShelterFrame>
+    <>
+      <div className="stat-grid">
+        <Stat value={items.length} label="Items" />
+        <Stat value={items.filter((i) => i.status === "low").length} label="Low" />
+        <Stat value={items.filter((i) => i.status === "shortage").length} label="Shortage" tone={items.some((i) => i.status === "shortage") ? "rose" : ""} />
+        <Stat value={items.filter((i) => i.is_equipment).length} label="Medical equipment" />
+      </div>
+      <div className="chip-row" role="group" aria-label={t("Show")}>
+        {SUPPLY_FILTERS.map(([value, label]) => (
+          <button key={value} type="button" className={`chip ${filter === value ? "active" : ""}`} aria-pressed={filter === value} onClick={() => setFilter(value)}>
+            {t(label)}{value === "missing" && missing.length ? ` (${missing.length})` : ""}
+          </button>
+        ))}
+      </div>
+      <section className="card"><InventoryTable items={shown} reload={reload} /></section>
+      <AddInventory shelterId={data.shelter.id} reload={reload} />
+    </>
   );
 }
 
@@ -1473,7 +1482,7 @@ export const ROLE_ROUTES = [
   ["/shelter", ShelterOverviewPage, SHELTER],
   ["/shelter/residents", ShelterResidentsPage, SHELTER],
   ["/shelter/supplies", ShelterSuppliesPage, SHELTER],
-  ["/shelter/shortages", ShelterShortagesPage, SHELTER],
+  ["/shelter/shortages", ShelterSuppliesPage, SHELTER],
   ["/shelter/exchange", ShelterExchangePage, SHELTER],
   ["/shelter/donations", ShelterDonationsPage, SHELTER],
   ["/shelter/volunteers", ShelterVolunteersPage, SHELTER],

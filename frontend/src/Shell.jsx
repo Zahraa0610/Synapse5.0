@@ -29,8 +29,7 @@ const DESK_NAV = {
   shelter_coordinator: [
     ["/shelter", "Overview"],
     ["/shelter/residents", "Residents"],
-    ["/shelter/supplies", "Supplies"],
-    ["/shelter/shortages", "Shortages"],
+    ["/shelter/supplies", "Supplies and shortages"],
     ["/shelter/exchange", "Exchange"],
     ["/shelter/donations", "Donations"],
     ["/shelter/volunteers", "Volunteers"],
