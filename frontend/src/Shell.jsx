@@ -37,8 +37,8 @@ const DESK_NAV = {
     ["/shelter/reports", "Reports"],
     ["/lookup", "Find passport"],
   ],
-  doctor: [["/doctor", "Patients"], ["/lookup", "Find passport"]],
-  nurse: [["/doctor", "Patients"], ["/lookup", "Find passport"]],
+  doctor: [["/doctor", "Patients"], ["/lookup", "Find passport"], ["/doctor/notices", "Health events"]],
+  nurse: [["/doctor", "Patients"], ["/lookup", "Find passport"], ["/doctor/notices", "Health events"]],
   psychologist: [["/doctor", "Patients"], ["/lookup", "Find passport"]],
   ministry: [
     ["/ministry", "Overview"],
@@ -47,6 +47,7 @@ const DESK_NAV = {
     ["/ministry/ngos", "NGOs"],
     ["/ministry/donations", "Donations"],
     ["/ministry/reports", "Reports"],
+    ["/ministry/notices", "Health events"],
   ],
   ngo: [["/ngo", "Coordination"]],
 };

@@ -17,7 +17,6 @@ from .domain import (
 from .extensions import db
 from .http import error, login_required, parse_date, payload, save_upload
 from .models import (
-    Announcement,
     Appointment,
     Attachment,
     DialysisSession,
@@ -64,7 +63,9 @@ def _owned(profile):
 @login_required()
 def home():
     profiles = Profile.query.filter_by(owner_user_id=g.user.id).order_by(Profile.id.asc()).all()
-    announcements = Announcement.query.order_by(Announcement.starts_at.asc()).limit(6).all()
+    from .routes_people import _announcement, notices_for
+
+    announcements = notices_for(g.user, limit=6)
     upcoming = []
     for profile in profiles:
         for session in DialysisSession.query.filter_by(profile_id=profile.id, status="scheduled").all():
@@ -107,18 +108,6 @@ def home():
         }
     )
 
-
-def _announcement(item):
-    shelter = db.session.get(Shelter, item.shelter_id) if item.shelter_id else None
-    return {
-        "id": item.id,
-        "kind": item.kind,
-        "title": item.title,
-        "location": item.location,
-        "starts_at": iso(item.starts_at),
-        "details": item.details,
-        "shelter_name": shelter.name if shelter else None,
-    }
 
 
 @passport_bp.post("/profiles")

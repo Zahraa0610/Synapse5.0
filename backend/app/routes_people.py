@@ -375,8 +375,7 @@ def update_complaint(item_id):
 @login_required({"volunteer"})
 def volunteer_board():
     tasks = Task.query.order_by(Task.scheduled_at.asc()).all()
-    announcements = Announcement.query.order_by(Announcement.starts_at.asc()).all()
-    return jsonify({"tasks": [_task(item) for item in tasks], "announcements": [_announcement(item) for item in announcements]})
+    return jsonify({"tasks": [_task(item) for item in tasks], "announcements": [_announcement(item) for item in notices_for(g.user)]})
 
 
 def _task(item):
@@ -398,17 +397,52 @@ def _task(item):
     }
 
 
+NOTICE_KINDS = {"doctor_visit", "free_healthcare_day", "screening", "vaccination", "other"}
+POSTER_LABELS = {"ministry": "Ministry of Public Health", "doctor": "Doctor", "nurse": "Nurse", "shelter_coordinator": "Shelter coordinator"}
+
+
 def _announcement(item):
     shelter = db.session.get(Shelter, item.shelter_id) if item.shelter_id else None
+    author = db.session.get(User, item.created_by) if item.created_by else None
     return {
         "id": item.id,
         "kind": item.kind,
         "title": item.title,
         "location": item.location,
         "starts_at": iso(item.starts_at),
+        "ends_at": iso(item.ends_at),
         "details": item.details,
+        "shelter_id": item.shelter_id,
         "shelter_name": shelter.name if shelter else None,
+        "region": item.region or (shelter.region if shelter else None),
+        "posted_by": author.full_name if author else None,
+        "posted_by_role": POSTER_LABELS.get(author.role) if author else None,
+        "mine": bool(author and author.id == g.user.id),
     }
+
+
+def notices_for(user, limit=None):
+    """Upcoming notices this person should see: everything national, plus their
+    region and their shelter. People without a shelter see every notice."""
+    from datetime import datetime, timedelta, timezone
+
+    from .domain import aware
+
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=12)
+    shelter = db.session.get(Shelter, user.shelter_id) if user.shelter_id else None
+    rows = []
+    for item in Announcement.query.order_by(Announcement.starts_at.asc()).all():
+        last = item.ends_at or item.starts_at
+        if last and aware(last) < cutoff:
+            continue  # already over
+        if user.role == "caregiver" and shelter:
+            item_region = item.region or (db.session.get(Shelter, item.shelter_id).region if item.shelter_id else None)
+            if item.shelter_id and item.shelter_id != shelter.id:
+                continue
+            if not item.shelter_id and item_region and item_region != shelter.region:
+                continue
+        rows.append(item)
+    return rows[:limit] if limit else rows
 
 
 @people_bp.post("/tasks")
@@ -464,27 +498,75 @@ def respond_task(item_id):
     return jsonify({"task": _task(item)})
 
 
+@people_bp.get("/announcements")
+@login_required()
+def list_announcements():
+    """Upcoming notices for this person, plus the ones they posted themselves."""
+    mine = Announcement.query.filter_by(created_by=g.user.id).order_by(Announcement.starts_at.desc()).all()
+    return jsonify(
+        {
+            "announcements": [_announcement(item) for item in notices_for(g.user)],
+            "mine": [_announcement(item) for item in mine],
+        }
+    )
+
+
 @people_bp.post("/announcements")
 @login_required({"shelter_coordinator", "doctor", "nurse", "ministry"})
 def add_announcement():
+    """Doctors, nurses, shelter coordinators and the Ministry post events (free check-ups,
+    screening days, vaccination campaigns...). They show up for everyone concerned."""
     if g.user.role in {"doctor", "nurse", "ministry"} and g.user.verification_status != "approved":
         return error("Your account is still under review", 403)
     data = payload()
     kind = (data.get("kind") or "").strip()
     title = (data.get("title") or "").strip()
-    if kind not in {"doctor_visit", "free_healthcare_day"} or not title:
-        return error("Enter the announcement", 400)
+    if kind not in NOTICE_KINDS or not title:
+        return error("Choose the type of event and give it a title", 400)
+    starts_at = parse_dt(data.get("starts_at"))
+    if not starts_at:
+        return error("Choose when the event starts", 400)
+    ends_at = parse_dt(data.get("ends_at"))
+    if ends_at and ends_at < starts_at:
+        return error("The end time is before the start time", 400)
+
+    shelter = None
+    if g.user.role == "shelter_coordinator":
+        shelter = db.session.get(Shelter, g.user.shelter_id) if g.user.shelter_id else None
+    elif data.get("shelter_id"):
+        shelter = db.session.get(Shelter, int(data.get("shelter_id")))
+        if not shelter:
+            return error("That shelter is not registered", 400)
+    region = (data.get("region") or "").strip() or None
+    if region and region not in REGIONS:
+        return error("Choose a region", 400)
     item = Announcement(
         kind=kind,
         title=title,
         location=(data.get("location") or "").strip() or None,
-        starts_at=parse_dt(data.get("starts_at")),
+        starts_at=starts_at,
+        ends_at=ends_at,
         details=(data.get("details") or "").strip() or None,
-        shelter_id=data.get("shelter_id") or g.user.shelter_id,
+        shelter_id=shelter.id if shelter else None,
+        region=shelter.region if shelter else region,
+        created_by=g.user.id,
     )
     db.session.add(item)
     db.session.commit()
     return jsonify({"announcement": _announcement(item)}), 201
+
+
+@people_bp.delete("/announcements/<int:item_id>")
+@login_required({"shelter_coordinator", "doctor", "nurse", "ministry"})
+def delete_announcement(item_id):
+    item = db.session.get(Announcement, item_id)
+    if not item:
+        return error("Notice not found", 404)
+    if item.created_by != g.user.id and g.user.role != "ministry":
+        return error("You can remove notices you posted", 403)
+    db.session.delete(item)
+    db.session.commit()
+    return jsonify({"ok": True})
 
 
 @people_bp.get("/donor/board")
