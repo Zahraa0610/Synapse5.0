@@ -32,6 +32,9 @@ class User(db.Model):
     car_plate = db.Column(db.String(30))
     car_seats = db.Column(db.Integer)
     car_wheelchair = db.Column(db.Boolean, nullable=False, default=False)
+    # One-time phone login code (stored hashed, expires after 10 minutes)
+    login_code_hash = db.Column(db.String(255))
+    login_code_expires = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
 
 

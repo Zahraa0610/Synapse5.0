@@ -34,18 +34,6 @@ export async function fileUrl(path) {
   return URL.createObjectURL(await response.blob());
 }
 
-export const DEMO_ACCOUNTS = [
-  ["Caregiver", "rania@maak.test"],
-  ["Volunteer", "rana@maak.test"],
-  ["Doctor", "nadine@maak.test"],
-  ["Shelter", "jad@maak.test"],
-  ["Donor", "lina@maak.test"],
-  ["Ministry", "ministry@maak.test"],
-  ["NGO", "ngo@maak.test"],
-];
-
-export const DEMO_PASSWORD = "maak1234";
-
 export function homeFor(role) {
   if (role === "volunteer") return "/volunteer";
   if (role === "donor") return "/donor";
