@@ -211,7 +211,10 @@ class Announcement(db.Model):
     location = db.Column(db.String(200))
     starts_at = db.Column(db.DateTime)
     details = db.Column(db.Text)
-    shelter_id = db.Column(db.Integer, db.ForeignKey("shelters.id"))
+    shelter_id = db.Column(db.Integer, db.ForeignKey("shelters.id"))  # one shelter, or
+    region = db.Column(db.String(80))  # a whole region; neither = all of Lebanon
+    ends_at = db.Column(db.DateTime)
+    created_by = db.Column(db.Integer, db.ForeignKey("users.id"))
     created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
 
 

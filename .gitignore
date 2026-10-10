@@ -10,3 +10,5 @@ backend/uploads/
 backend/.env
 backend/*firebase*.json
 backend/serviceAccount*.json
+firebase-key.json
+.env

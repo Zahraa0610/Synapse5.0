@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api, formatWhen } from "./api";
 import { useAuth, useI18n } from "./context";
-import { ComplaintForm, CriticalityControl, LIVING_SITUATIONS, useData } from "./PatientPages";
+import { ComplaintForm, CriticalityControl, LIVING_SITUATIONS, NOTICE_KINDS, NoticeCard, useData } from "./PatientPages";
 import { Bars, Button, Empty, ErrorText, Field, Note, Pill, Select } from "./ui";
 
 /* ------------------------------------------------------------------ */
@@ -217,18 +217,109 @@ export function VolunteerNoticesPage() {
   const items = data?.announcements || [];
   return (
     <div className="stack">
-      <h1>{t("Notices")}</h1>
-      <p className="muted">{t("Volunteer doctor visits and free healthcare days.")}</p>
+      <PageTitle sub="Doctor visits, free check-ups, screening days and vaccination campaigns.">Notices</PageTitle>
       <ErrorText>{error}</ErrorText>
       {data && items.length === 0 && <Empty>{t("No visits announced.")}</Empty>}
-      {items.map((item) => (
-        <div className="card stack" key={item.id}>
-          <span className="eyebrow">{t(item.kind === "doctor_visit" ? "Volunteer doctor visit" : "Free healthcare day")}</span>
-          <strong>{item.title}</strong>
-          <p className="small muted">{[item.location || item.shelter_name, formatWhen(item.starts_at)].filter(Boolean).join(" · ")}</p>
-          {item.details && <p className="small">{item.details}</p>}
+      {items.map((item) => <NoticeCard key={item.id} item={item} />)}
+    </div>
+  );
+}
+
+// Post an event and manage the ones you posted. Used by the Ministry, doctors/nurses and shelter coordinators.
+// `scope`: "any" lets the poster choose all of Lebanon, a region or one shelter; "own-shelter" fixes it.
+function NoticesManager({ scope = "any" }) {
+  const { t } = useI18n();
+  const { data, error, reload } = useData("/announcements");
+  const shelters = useData(scope === "any" ? "/shelters" : null);
+  const blank = { kind: "doctor_visit", title: "", location: "", starts_at: "", ends_at: "", details: "", target: "all", region: "", shelter_id: "" };
+  const [form, set, reset] = useForm(blank);
+  const post = useAction(reload);
+  const remove = useAction(reload);
+  const [sent, setSent] = useState(false);
+  async function submit(e) {
+    e.preventDefault();
+    setSent(false);
+    const body = { kind: form.kind, title: form.title, location: form.location, starts_at: form.starts_at, ends_at: form.ends_at || null, details: form.details };
+    if (form.target === "region") body.region = form.region;
+    if (form.target === "shelter") body.shelter_id = Number(form.shelter_id);
+    if (await post.run("/announcements", "POST", body)) { reset(); setSent(true); }
+  }
+  const mine = data?.mine || [];
+  return (
+    <>
+      <form className="card stack" onSubmit={submit}>
+        <h3>{t("Post a health event")}</h3>
+        <div className="grid-2">
+          <Field label="Type"><Select value={form.kind} onChange={set("kind")} options={NOTICE_KINDS} /></Field>
+          <Field label="Title"><input value={form.title} onChange={set("title")} placeholder={t("e.g. Free eye check-ups")} required /></Field>
+          <Field label="Starts"><input type="datetime-local" value={form.starts_at} onChange={set("starts_at")} required /></Field>
+          <Field label="Ends (optional)"><input type="datetime-local" value={form.ends_at} onChange={set("ends_at")} /></Field>
+          <Field label="Place"><input value={form.location} onChange={set("location")} placeholder={t("e.g. Ground-floor hall")} /></Field>
         </div>
-      ))}
+        {scope === "any" && (
+          <fieldset className="check-group">
+            <legend>{t("Who should see it?")}</legend>
+            <label className="check"><input type="radio" name="target" checked={form.target === "all"} onChange={() => set("target")({ target: { value: "all" } })} /> {t("All of Lebanon")}</label>
+            <label className="check"><input type="radio" name="target" checked={form.target === "region"} onChange={() => set("target")({ target: { value: "region" } })} /> {t("One region")}</label>
+            <label className="check"><input type="radio" name="target" checked={form.target === "shelter"} onChange={() => set("target")({ target: { value: "shelter" } })} /> {t("One shelter")}</label>
+          </fieldset>
+        )}
+        {scope === "any" && form.target === "region" && (
+          <Field label="Region">
+            <select value={form.region} onChange={set("region")} required>
+              <option value="">—</option>
+              {REGION_LIST.map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </Field>
+        )}
+        {scope === "any" && form.target === "shelter" && (
+          <Field label="Shelter">
+            <select value={form.shelter_id} onChange={set("shelter_id")} required>
+              <option value="">—</option>
+              {(shelters.data?.shelters || []).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </Field>
+        )}
+        {scope === "own-shelter" && <p className="small muted">{t("Residents of your shelter will see it.")}</p>}
+        <Field label="Details (optional)"><textarea rows={3} value={form.details} onChange={set("details")} placeholder={t("Who it is for, what to bring…")} /></Field>
+        <ErrorText>{post.error}</ErrorText>
+        {sent && <div className="banner green small">{t("Posted. People see it in their notices now.")}</div>}
+        <Button type="submit" disabled={post.busy}>Post event</Button>
+      </form>
+      <section className="stack">
+        <h3>{t("Events you posted")}</h3>
+        <ErrorText>{error || remove.error}</ErrorText>
+        {data && mine.length === 0 && <Empty>{t("You have not posted any events yet.")}</Empty>}
+        {mine.map((item) => <NoticeCard key={item.id} item={item} onRemove={(n) => remove.run(`/announcements/${n.id}`, "DELETE")} />)}
+      </section>
+    </>
+  );
+}
+
+export function MinistryNoticesPage() {
+  return (
+    <div className="stack">
+      <PageTitle sub="Announce free check-ups, screening days and vaccination campaigns to families, volunteers and shelters.">Health events</PageTitle>
+      <NoticesManager scope="any" />
+    </div>
+  );
+}
+
+export function DoctorNoticesPage() {
+  const { user } = useAuth();
+  const { t } = useI18n();
+  if (user.verification_status !== "approved") {
+    return (
+      <div className="stack">
+        <PageTitle>Health events</PageTitle>
+        <div className="banner amber small">{t("You can post events once the Ministry approves your credentials.")}</div>
+      </div>
+    );
+  }
+  return (
+    <div className="stack">
+      <PageTitle sub="Running a volunteer visit or a free check-up day? Post it here and families nearby will see it.">Health events</PageTitle>
+      <NoticesManager scope="any" />
     </div>
   );
 }
@@ -943,9 +1034,7 @@ export function ShelterVolunteersPage() {
 
 function ShelterVolunteers({ data, reload, t }) {
   const [task, setTask, resetTask] = useForm({ kind: "delivery", title: "", details: "", location: "", scheduled_at: "" });
-  const [notice, setNotice, resetNotice] = useForm({ kind: "doctor_visit", title: "", location: "", starts_at: "" });
   const addTask = useAction(reload);
-  const addNotice = useAction(reload);
   return (
     <>
       <section className="card stack">
@@ -970,17 +1059,7 @@ function ShelterVolunteers({ data, reload, t }) {
         <ErrorText>{addTask.error}</ErrorText>
         <Button type="submit" disabled={addTask.busy}>Post task</Button>
       </form>
-      <form className="card stack" onSubmit={async (e) => { e.preventDefault(); if (await addNotice.run("/announcements", "POST", notice)) resetNotice(); }}>
-        <h3>{t("Announce a visit")}</h3>
-        <Field label="Type"><Select value={notice.kind} onChange={setNotice("kind")} options={[{ value: "doctor_visit", label: "Volunteer doctor visit" }, { value: "free_healthcare_day", label: "Free healthcare day" }]} /></Field>
-        <Field label="Title"><input value={notice.title} onChange={setNotice("title")} required /></Field>
-        <div className="grid-2">
-          <Field label="Location"><input value={notice.location} onChange={setNotice("location")} /></Field>
-          <Field label="Date"><input type="datetime-local" value={notice.starts_at} onChange={setNotice("starts_at")} /></Field>
-        </div>
-        <ErrorText>{addNotice.error}</ErrorText>
-        <Button type="submit" disabled={addNotice.busy}>Announce</Button>
-      </form>
+      <NoticesManager scope="own-shelter" />
     </>
   );
 }
@@ -1562,5 +1641,7 @@ export const ROLE_ROUTES = [
   ["/ministry/ngos", MinistryNgosPage, MINISTRY],
   ["/ministry/donations", MinistryDonationsPage, MINISTRY],
   ["/ministry/reports", MinistryReportsPage, MINISTRY],
+  ["/ministry/notices", MinistryNoticesPage, MINISTRY],
+  ["/doctor/notices", DoctorNoticesPage, CLINICIAN],
   ["/ngo", NgoPage, NGO],
 ];

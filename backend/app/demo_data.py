@@ -662,6 +662,9 @@ def load_demo_data():
             starts_at=now + timedelta(days=2, hours=10),
             details="Internal medicine clinic for residents. Bring your health passport.",
             shelter_id=alay.id,
+            region=alay.region,
+            ends_at=now + timedelta(days=2, hours=14),
+            created_by=nadine.id,
         )
     )
     db.session.add(
@@ -672,6 +675,30 @@ def load_demo_data():
             starts_at=now + timedelta(days=5, hours=9),
             details="Vaccination catch-up and prenatal checks. No fee.",
             shelter_id=shelters["Saida Technical Institute"].id,
+            region="South",
+            created_by=ministry.id,
+        )
+    )
+    db.session.add(
+        Announcement(
+            kind="vaccination",
+            title="National polio and measles vaccination week",
+            location="All primary health care centres",
+            starts_at=now + timedelta(days=7, hours=8),
+            ends_at=now + timedelta(days=14, hours=16),
+            details="Free vaccines for children under 15. Bring the child's health passport or vaccination card.",
+            created_by=ministry.id,
+        )
+    )
+    db.session.add(
+        Announcement(
+            kind="screening",
+            title="Free eye and blood-pressure screening",
+            location="Tripoli Public School courtyard",
+            starts_at=now + timedelta(days=4, hours=9),
+            ends_at=now + timedelta(days=4, hours=15),
+            region="North",
+            created_by=ministry.id,
         )
     )
 

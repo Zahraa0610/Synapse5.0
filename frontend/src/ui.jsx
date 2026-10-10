@@ -1,14 +1,9 @@
 import { useI18n } from "./context";
 import { toneFor } from "./api";
 
-export function Mark() {
-  return (
-    <svg width="36" height="36" viewBox="0 0 48 48" aria-hidden="true">
-      <rect width="48" height="48" rx="14" fill="#1c4336" />
-      <path d="M24 12c6 4 8 8 8 13a8 8 0 1 1-16 0c0-5 2-9 8-13z" fill="#f3f0e7" />
-      <circle cx="24" cy="25" r="2.2" fill="#1c4336" />
-    </svg>
-  );
+// The Ma'ak logo (frontend/public/logo.png)
+export function Mark({ size = 40 }) {
+  return <img className="brand-mark" src="/logo.png" width={size} height={size} alt="Ma'ak" />;
 }
 
 export function LangToggle() {
