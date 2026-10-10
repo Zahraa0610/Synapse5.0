@@ -30,7 +30,7 @@ export function LandingPage() {
   return (
     <div className="center-page">
       <div className="auth-wrap">
-        <div className="spread"><Mark /><LangToggle /></div>
+        <div className="spread"><Mark size={88} /><LangToggle /></div>
         <h1 style={{ marginTop: 28 }}>{t("Your health record, wherever you go.")}</h1>
         <p className="muted">Ma'ak keeps a health passport with displaced families, shelters, volunteers, and the Ministry of Public Health.</p>
         <div className="stack" style={{ marginTop: 22 }}>

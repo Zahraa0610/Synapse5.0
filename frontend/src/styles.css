@@ -404,3 +404,7 @@ table.data th { font-size: 12px; color: var(--muted); font-weight: 600; }
 .crit-control { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .segment button.active.danger { background: var(--rose); color: #fff; }
 
+
+.brand-mark { display: block; object-fit: contain; flex: none; }
+/* The logo sits on a light disc where the background is dark green */
+.sidebar .brand-mark { background: #f6f3ea; border-radius: 50%; padding: 3px; box-sizing: content-box; }
