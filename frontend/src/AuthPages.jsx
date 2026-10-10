@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
-import { api, DEMO_ACCOUNTS, DEMO_PASSWORD, homeFor } from "./api";
+import { api, homeFor } from "./api";
 import { useAuth, useI18n } from "./context";
 import { Button, ErrorText, Field, LangToggle, Mark, Note, Pill, Select } from "./ui";
 
@@ -54,6 +54,30 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [hint, setHint] = useState("");
+  const [sending, setSending] = useState(false);
+  const [demoInfo, setDemoInfo] = useState(null);
+
+  // Quick-login buttons exist only when the server runs in demo mode.
+  useEffect(() => {
+    api("/health")
+      .then((health) => (health.demo ? api("/demo/accounts") : null))
+      .then((info) => info && setDemoInfo(info))
+      .catch(() => {});
+  }, []);
+
+  async function sendCode() {
+    setError("");
+    setHint("");
+    setSending(true);
+    try {
+      const result = await api("/auth/send-code", { method: "POST", body: JSON.stringify({ phone }) });
+      setHint(result.demo_code ? `${t("Demo mode: your code is")} ${result.demo_code}` : t("If this number has an account, a code was sent."));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSending(false);
+    }
+  }
 
   async function submit(event) {
     event.preventDefault();
@@ -71,7 +95,7 @@ export function LoginPage() {
   async function demo(address) {
     setError("");
     try {
-      const user = await login({ email: address, password: DEMO_PASSWORD });
+      const user = await login({ email: address, password: demoInfo.password });
       navigate(homeFor(user.role));
     } catch (err) {
       setError(err.message);
@@ -93,9 +117,9 @@ export function LoginPage() {
         {mode === "phone" ? (
           <>
             <Field label="Phone number"><input value={phone} onChange={(e) => setPhone(e.target.value)} /></Field>
-            <Field label="Demo code"><input inputMode="numeric" maxLength={6} value={code} onChange={(e) => setCode(e.target.value)} placeholder="000000" /></Field>
-            <button type="button" className="text-btn" onClick={() => setHint("Demo code 000000")}>{t("Send by WhatsApp")}</button>
+            <Button type="button" soft disabled={sending || phone.length < 8} onClick={sendCode}>{sending ? "Sending…" : "Send code"}</Button>
             {hint && <p className="small muted">{hint}</p>}
+            <Field label="6-digit code"><input inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} /></Field>
           </>
         ) : (
           <>
@@ -107,15 +131,16 @@ export function LoginPage() {
         <Button className="full" type="submit">Sign in</Button>
         <Link to="/register">{t("Create an account")}</Link>
         <Link to="/emergency">{t("Emergency aid works without signing in")}</Link>
-        <div>
-          <div className="small muted">{t("Try a role")}</div>
-          <div className="demo-grid" style={{ marginTop: 8 }}>
-            {DEMO_ACCOUNTS.map(([label, address]) => (
-              <button key={address} type="button" onClick={() => demo(address)}>{label}</button>
-            ))}
+        {demoInfo && (
+          <div className="demo-box">
+            <div className="small"><strong>{t("Demo mode")}</strong> · {t("Try a role")}</div>
+            <div className="demo-grid" style={{ marginTop: 8 }}>
+              {demoInfo.accounts.map(({ label, email: address }) => (
+                <button key={address} type="button" onClick={() => demo(address)}>{t(label)}</button>
+              ))}
+            </div>
           </div>
-          <p className="small muted">Password {DEMO_PASSWORD}. Phone code 000000.</p>
-        </div>
+        )}
       </form>
     </div>
   );

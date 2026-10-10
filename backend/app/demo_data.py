@@ -1,3 +1,14 @@
+"""Demo data for presentations and the demo video.
+
+Not loaded by a normal start. Load it with:
+    python manage.py demo        (wipes the database, then loads this)
+or start the server in demo mode:
+    python run.py --demo         (loads it automatically into an empty database)
+
+Everything here is fictional: names, phone numbers and records are made up.
+Dates are relative to today, so the demo always looks current.
+"""
+
 import secrets
 from datetime import date, datetime, timedelta, timezone
 
@@ -32,11 +43,28 @@ from .models import (
 )
 
 
-def seed():
-    if User.query.first():
-        return
+DEMO_PASSWORD = "maak1234"
 
-    password = generate_password_hash("maak1234")
+# Accounts shown as quick-login buttons in demo mode only.
+DEMO_ACCOUNTS = [
+    ("Family", "rania@maak.test"),
+    ("Family (renting)", "hussein@maak.test"),
+    ("Volunteer", "rana@maak.test"),
+    ("Driver", "karim@maak.test"),
+    ("Doctor", "nadine@maak.test"),
+    ("Shelter", "jad@maak.test"),
+    ("Donor", "lina@maak.test"),
+    ("Ministry", "ministry@maak.test"),
+    ("NGO", "ngo@maak.test"),
+]
+
+
+def load_demo_data():
+    """Fill an empty database with a realistic, fictional scenario."""
+    if User.query.first():
+        return False
+
+    password = generate_password_hash(DEMO_PASSWORD)
     today = date.today()
     now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
 
@@ -856,8 +884,6 @@ def seed():
             label = f"{year:04d}-{month:02d}"
             base = 4 + (index % 3)
             shortages = base + (5 - month_offset) if shelter.region in {"South", "Akkar", "Baalbek-Hermel"} else max(1, base - month_offset)
-            if month_offset == 0 and shelter.name == "Alay Public School":
-                shortages = 9
             db.session.add(
                 HistorySnapshot(
                     month=label,
@@ -885,3 +911,4 @@ def seed():
     )
 
     db.session.commit()
+    return True

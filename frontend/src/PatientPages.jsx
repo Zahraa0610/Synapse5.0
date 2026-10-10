@@ -162,6 +162,7 @@ export function PassportPage() {
         <Link className="text-btn" to="/lookup">{t("Find by ID")}</Link>
       </div>
       <Picker profiles={profiles} current={profileId} onChange={setProfileId} />
+      {home.data && profiles.length === 0 && <p className="muted">{t("No family profiles yet.")} <Link to="/home">{t("Add a family member")}</Link></p>}
       <ErrorText>{home.error || passport.error || error}</ErrorText>
       {passport.data && (
         <>
@@ -310,6 +311,7 @@ export function CarePage() {
     <div className="stack">
       <h1>{t("Care needs")}</h1>
       <Picker profiles={profiles} current={profileId} onChange={pickPerson} />
+      {home.data && profiles.length === 0 && <p className="muted">{t("No family profiles yet.")} <Link to="/home">{t("Add a family member")}</Link></p>}
       <ErrorText>{care.error}</ErrorText>
       {data && (
         <>

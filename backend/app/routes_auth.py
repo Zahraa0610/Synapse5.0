@@ -1,4 +1,4 @@
-from flask import Blueprint, g, jsonify, request
+from flask import Blueprint, current_app, g, jsonify, request
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from .domain import CLINICAL, ROLES, user_public
@@ -79,8 +79,51 @@ def register():
         car_wheelchair=as_bool(data.get("car_wheelchair")) if role == "volunteer" and offers_driving else False,
     )
     db.session.add(user)
+    db.session.flush()
+    if role == "caregiver":
+        # Every family account starts with a health passport for the person themselves.
+        import secrets
+
+        from .models import Profile
+
+        db.session.add(
+            Profile(
+                owner_user_id=user.id,
+                full_name=full_name,
+                relationship="self",
+                shelter_id=user.shelter_id,
+                emergency_token=secrets.token_urlsafe(8),
+            )
+        )
     db.session.commit()
     return jsonify({"token": token_for(user), "user": user_public(user)}), 201
+
+
+def send_login_code(phone, code):
+    """Deliver a login code. No SMS/WhatsApp provider is connected yet, so the
+    code is printed in the server console; plug a provider in here."""
+    print(f" * Ma'ak login code for {phone}: {code} (valid 10 minutes)")
+
+
+@auth_bp.post("/auth/send-code")
+def send_code():
+    import secrets
+    from datetime import datetime, timedelta, timezone
+
+    phone = (payload().get("phone") or "").strip()
+    if not phone:
+        return error("Enter your phone number", 400)
+    body = {"ok": True, "message": "If this number has an account, a code was sent."}
+    user = User.query.filter_by(phone=phone).first()
+    if user:
+        code = f"{secrets.randbelow(1_000_000):06d}"
+        user.login_code_hash = generate_password_hash(code)
+        user.login_code_expires = datetime.now(timezone.utc) + timedelta(minutes=10)
+        db.session.commit()
+        send_login_code(phone, code)
+        if current_app.config.get("DEMO"):
+            body["demo_code"] = code  # demo mode only, so the video can show the flow
+    return jsonify(body)
 
 
 @auth_bp.post("/auth/login")
@@ -97,9 +140,23 @@ def login():
         if not user or not check_password_hash(user.password_hash, password):
             return error("Email or password is incorrect", 401)
     elif phone:
+        from datetime import datetime, timezone
+
+        from .domain import aware
+
         user = User.query.filter_by(phone=phone).first()
-        if not user or code != "000000":
+        valid = (
+            user
+            and user.login_code_hash
+            and user.login_code_expires
+            and aware(user.login_code_expires) > datetime.now(timezone.utc)
+            and check_password_hash(user.login_code_hash, code)
+        )
+        if not valid:
             return error("Phone number or code is incorrect", 401)
+        user.login_code_hash = None  # a code works once
+        user.login_code_expires = None
+        db.session.commit()
     else:
         return error("Enter your email or phone number", 400)
     return jsonify({"token": token_for(user), "user": user_public(user)})

@@ -1227,11 +1227,54 @@ function VerificationQueue() {
   );
 }
 
+const REGION_LIST = ["Beirut", "Mount Lebanon", "North", "Akkar", "Bekaa", "Baalbek-Hermel", "South", "Nabatieh"];
+
+function RegisterShelter({ reload }) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const [form, set, reset] = useForm({ name: "", region: "", kind: "school", address: "", capacity: "", occupancy: "", accessible: false, accessible_spaces: "", has_backup_power: false, electricity_hours: "" });
+  const action = useAction(reload);
+  if (!open) return <Button type="button" soft onClick={() => setOpen(true)}>Register a shelter</Button>;
+  return (
+    <form className="card stack" onSubmit={async (e) => { e.preventDefault(); if (await action.run("/shelters", "POST", form)) { reset(); setOpen(false); } }}>
+      <h3>{t("Register a shelter")}</h3>
+      <div className="grid-2">
+        <Field label="Shelter name"><input value={form.name} onChange={set("name")} required /></Field>
+        <Field label="Region">
+          <select value={form.region} onChange={set("region")} required>
+            <option value="">—</option>
+            {REGION_LIST.map((r) => <option key={r} value={r}>{r}</option>)}
+          </select>
+        </Field>
+        <Field label="Type"><Select value={form.kind} onChange={set("kind")} options={[{ value: "school", label: "School" }, { value: "center", label: "Community center" }, { value: "other", label: "Other" }]} /></Field>
+        <Field label="Town or address"><input value={form.address} onChange={set("address")} /></Field>
+        <Field label="Capacity"><input type="number" min="0" value={form.capacity} onChange={set("capacity")} /></Field>
+        <Field label="Occupancy"><input type="number" min="0" value={form.occupancy} onChange={set("occupancy")} /></Field>
+        <Field label="Accessible spaces"><input type="number" min="0" value={form.accessible_spaces} onChange={set("accessible_spaces")} /></Field>
+        <Field label="Backup power (hours/day)"><input type="number" min="0" max="24" value={form.electricity_hours} onChange={set("electricity_hours")} /></Field>
+      </div>
+      <fieldset className="check-group">
+        <legend>{t("Facilities")}</legend>
+        <label className="check"><input type="checkbox" checked={form.accessible} onChange={set("accessible")} /> {t("Wheelchair accessible")}</label>
+        <label className="check"><input type="checkbox" checked={form.has_backup_power} onChange={set("has_backup_power")} /> {t("Has backup power")}</label>
+      </fieldset>
+      <ErrorText>{action.error}</ErrorText>
+      <div className="action-row">
+        <Button type="button" ghost onClick={() => setOpen(false)}>Cancel</Button>
+        <Button type="submit" disabled={action.busy}>Register</Button>
+      </div>
+    </form>
+  );
+}
+
 export function MinistrySheltersPage() {
   const { t } = useI18n();
   return (
     <MinistryFrame path="/ministry/shelters" title="Shelters" sub="Every registered shelter, ordered by need.">
-      {(data) => (
+      {(data, reload) => (
+        <>
+        <RegisterShelter reload={reload} />
+        {data.shelters.length === 0 && <Empty>{t("No shelters registered yet.")}</Empty>}
         <section className="card">
           <div className="table-wrap">
             <table className="data">
@@ -1251,6 +1294,7 @@ export function MinistrySheltersPage() {
             </table>
           </div>
         </section>
+        </>
       )}
     </MinistryFrame>
   );
