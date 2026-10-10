@@ -323,20 +323,31 @@ function Picker({ profiles, current, onChange }) {
   );
 }
 
+// Each need the person can pick. `count` says how many things are already recorded.
+const NEEDS = [
+  { id: "devices", label: "Medical devices and power", hint: "Oxygen, ventilator, other devices", count: (d) => d.dependencies.length },
+  { id: "dialysis", label: "Dialysis", hint: "Sessions and open seats", count: (d) => d.dialysis.length },
+  { id: "pregnancy", label: "Pregnancy", hint: "Stage, due date, risk", count: (d) => (d.pregnancy ? 1 : 0) },
+  { id: "nutrition", label: "Specialized nutrition", hint: "Tube feeding, special diets", count: (d) => d.supplies.filter((s) => s.category === "specialized_nutrition").length },
+  { id: "supplies", label: "Food and supplies", hint: "Food, formula, hygiene", count: (d) => d.supplies.filter((s) => s.category !== "specialized_nutrition").length },
+];
+
 export function CarePage() {
   const { t } = useI18n();
   const home = useData("/home");
   const profiles = home.data?.profiles || [];
   const [profileId, setProfileId] = useState(null);
+  const [need, setNeed] = useState(null);
   useEffect(() => {
     if (profiles[0] && !profileId) setProfileId(profiles[0].id);
   }, [profiles, profileId]);
   const care = useData(profileId ? `/profiles/${profileId}/care` : null);
   const data = care.data;
+  const pickPerson = (id) => { setProfileId(id); setNeed(null); };
   return (
     <div className="stack">
       <h1>{t("Care needs")}</h1>
-      <Picker profiles={profiles} current={profileId} onChange={setProfileId} />
+      <Picker profiles={profiles} current={profileId} onChange={pickPerson} />
       <ErrorText>{care.error}</ErrorText>
       {data && (
         <>
@@ -348,76 +359,109 @@ export function CarePage() {
             <p className="small">{(data.criticality.reasons || []).join(" · ") || "No urgent supply signal."}</p>
             <p className="small muted">{t("Suggested from reported supplies. A coordinator or clinician confirms it.")} {t("This supports a decision. It does not assign care.")}</p>
           </div>
-          <section className="card stack">
-            <h3>{t("Medical devices and power")}</h3>
-            {data.dependencies.map((item) => (
-              <div key={item.id}>
-                <div className="spread"><strong>{item.device_name || t(DEVICE_KINDS.find((kind) => kind.value === item.kind)?.label || item.kind)}</strong><span>{item.supply_level_percent ?? "—"}%</span></div>
-                <Bars value={item.supply_level_percent || 0} tone={(item.supply_level_percent || 0) < 25 ? "rose" : ""} />
-                <p className="small muted">{item.hours_remaining ?? "—"} {t("Hours left")}</p>
-              </div>
-            ))}
-            <DependencyForm profileId={profileId} onDone={care.reload} />
+
+          <section className="stack">
+            <h3>{t("What do you need help with?")}</h3>
+            <div className="need-grid" role="group" aria-label={t("What do you need help with?")}>
+              {NEEDS.map((item) => {
+                const count = item.count(data);
+                return (
+                  <button key={item.id} type="button" className={`need-tile ${need === item.id ? "active" : ""}`} aria-pressed={need === item.id} onClick={() => setNeed(need === item.id ? null : item.id)}>
+                    <strong>{t(item.label)}</strong>
+                    <span className="small muted">{t(item.hint)}</span>
+                    {count > 0 && <Pill value="available">{count} {t("recorded")}</Pill>}
+                  </button>
+                );
+              })}
+            </div>
+            {!need && <p className="small muted">{t("Choose one to see what is recorded and add information.")}</p>}
           </section>
-          <section className="card stack">
-            <h3>{t("Shelters with backup power")}</h3>
-            {data.backup_shelters.map((shelter) => (
-              <div className="row" key={shelter.id}>
-                <div>
-                  <strong>{shelter.name}</strong>
-                  <div className="small muted">{shelter.region} · {shelter.electricity_hours}h backup · {shelter.accessible ? "Accessible" : "Not accessible"}</div>
+
+          {need === "devices" && (
+            <>
+              <section className="card stack">
+                <h3>{t("Medical devices and power")}</h3>
+                {data.dependencies.map((item) => (
+                  <div key={item.id}>
+                    <div className="spread"><strong>{item.device_name || t(DEVICE_KINDS.find((kind) => kind.value === item.kind)?.label || item.kind)}</strong><span>{item.supply_level_percent ?? "—"}%</span></div>
+                    <Bars value={item.supply_level_percent || 0} tone={(item.supply_level_percent || 0) < 25 ? "rose" : ""} />
+                    <p className="small muted">{item.hours_remaining ?? "—"} {t("Hours left")}</p>
+                  </div>
+                ))}
+                <DependencyForm profileId={profileId} onDone={care.reload} />
+              </section>
+              <section className="card stack">
+                <h3>{t("Shelters with backup power")}</h3>
+                {data.backup_shelters.map((shelter) => (
+                  <div className="row" key={shelter.id}>
+                    <div>
+                      <strong>{shelter.name}</strong>
+                      <div className="small muted">{shelter.region} · {shelter.electricity_hours}h backup · {shelter.accessible ? "Accessible" : "Not accessible"}</div>
+                    </div>
+                    <MoveButton
+                      profileId={profileId}
+                      shelter={shelter}
+                      currentShelterId={data.profile.shelter_id}
+                      requested={(data.relocations || []).some((item) => item.destination_shelter_id === shelter.id && item.status === "requested")}
+                      onDone={care.reload}
+                    />
+                  </div>
+                ))}
+              </section>
+            </>
+          )}
+
+          {need === "dialysis" && (
+            <section className="card stack">
+              <h3>{t("Dialysis")}</h3>
+              {data.dialysis.map((item) => (
+                <div className="row" key={item.id}>
+                  <div><strong>{item.facility_name}</strong><div className="small muted">{formatWhen(item.scheduled_at)}</div></div>
+                  <div className="inline">
+                    <Pill value={item.status}>{item.status}</Pill>
+                    {item.status !== "missed" && <button className="text-btn" type="button" onClick={async () => { await api(`/dialysis/${item.id}`, { method: "PATCH", body: JSON.stringify({ status: "missed" }) }); care.reload(); }}>{t("Missed")}</button>}
+                  </div>
                 </div>
-                <MoveButton
-                  profileId={profileId}
-                  shelter={shelter}
-                  currentShelterId={data.profile.shelter_id}
-                  requested={(data.relocations || []).some((item) => item.destination_shelter_id === shelter.id && item.status === "requested")}
-                  onDone={care.reload}
-                />
-              </div>
-            ))}
-          </section>
-          <section className="card stack">
-            <h3>{t("Dialysis")}</h3>
-            {data.dialysis.map((item) => (
-              <div className="row" key={item.id}>
-                <div><strong>{item.facility_name}</strong><div className="small muted">{formatWhen(item.scheduled_at)}</div></div>
-                <div className="inline">
-                  <Pill value={item.status}>{item.status}</Pill>
-                  {item.status !== "missed" && <button className="text-btn" type="button" onClick={async () => { await api(`/dialysis/${item.id}`, { method: "PATCH", body: JSON.stringify({ status: "missed" }) }); care.reload(); }}>Missed</button>}
+              ))}
+              <DialysisForm profileId={profileId} onDone={care.reload} />
+              <h3>{t("Available seats")}</h3>
+              {data.seats.map((seat) => (
+                <div className="row" key={seat.id}>
+                  <div><strong>{seat.facility_name}</strong><div className="small muted">{seat.region} · {formatWhen(seat.next_opening)}</div></div>
+                  <Pill value={seat.seats_available ? "available" : "shortage"}>{seat.seats_available} seats</Pill>
                 </div>
-              </div>
-            ))}
-            <DialysisForm profileId={profileId} onDone={care.reload} />
-            <h3>{t("Available seats")}</h3>
-            {data.seats.map((seat) => (
-              <div className="row" key={seat.id}>
-                <div><strong>{seat.facility_name}</strong><div className="small muted">{seat.region} · {formatWhen(seat.next_opening)}</div></div>
-                <Pill value={seat.seats_available ? "available" : "shortage"}>{seat.seats_available} seats</Pill>
-              </div>
-            ))}
-          </section>
-          <section className="card stack">
-            <h3>{t("Food and supplies")}</h3>
-            {data.supplies.map((item) => (
-              <div className="row" key={item.id}>
-                <div><strong>{item.item_name}</strong><div className="small muted">{item.category} · {item.quantity_note}</div></div>
-                <Pill value={item.status}>{item.status}</Pill>
-              </div>
-            ))}
-            <SupplyForm profileId={profileId} onDone={care.reload} />
-          </section>
-          <section className="card stack">
-            <h3>{t("Pregnancy")}</h3>
-            {data.pregnancy && (
-              <div className="banner amber">
-                <strong>{data.pregnancy.weeks} weeks</strong>
-                <p className="small">{data.pregnancy.risk_level === "high" ? "High-risk" : "Routine"} · {data.pregnancy.risk_notes}</p>
-                <p className="small muted">Next visit {formatWhen(data.pregnancy.next_appointment)}</p>
-              </div>
-            )}
-            <PregnancyForm profileId={profileId} current={data.pregnancy} onDone={care.reload} />
-          </section>
+              ))}
+            </section>
+          )}
+
+          {need === "pregnancy" && (
+            <section className="card stack">
+              <h3>{t("Pregnancy")}</h3>
+              {data.pregnancy && (
+                <div className="banner amber">
+                  <strong>{data.pregnancy.weeks} {t("Weeks")}</strong>
+                  <p className="small">{data.pregnancy.risk_level === "high" ? "High-risk" : "Routine"} · {data.pregnancy.risk_notes}</p>
+                  <p className="small muted">Next visit {formatWhen(data.pregnancy.next_appointment)}</p>
+                </div>
+              )}
+              <PregnancyForm key={profileId} profileId={profileId} current={data.pregnancy} onDone={care.reload} />
+            </section>
+          )}
+
+          {(need === "nutrition" || need === "supplies") && (
+            <section className="card stack">
+              <h3>{t(need === "nutrition" ? "Specialized nutrition" : "Food and supplies")}</h3>
+              {data.supplies
+                .filter((item) => (need === "nutrition" ? item.category === "specialized_nutrition" : item.category !== "specialized_nutrition"))
+                .map((item) => (
+                  <div className="row" key={item.id}>
+                    <div><strong>{item.item_name}</strong><div className="small muted">{item.category} · {item.quantity_note}</div></div>
+                    <Pill value={item.status}>{item.status}</Pill>
+                  </div>
+                ))}
+              <SupplyForm key={need} profileId={profileId} nutrition={need === "nutrition"} onDone={care.reload} />
+            </section>
+          )}
         </>
       )}
     </div>
@@ -488,20 +532,39 @@ function DialysisForm({ profileId, onDone }) {
   );
 }
 
-function SupplyForm({ profileId, onDone }) {
-  const [form, setForm] = useState({ item_name: "", category: "food", quantity_note: "", status: "shortage" });
+function SupplyForm({ profileId, nutrition, onDone }) {
+  const { t } = useI18n();
+  const [form, setForm] = useState({ item_name: "", category: nutrition ? "specialized_nutrition" : "food", quantity_note: "", status: "shortage" });
+  const [error, setError] = useState("");
   const set = (key) => (e) => setForm({ ...form, [key]: e.target.value });
+  async function submit(e) {
+    e.preventDefault();
+    setError("");
+    try {
+      await api(`/profiles/${profileId}/supplies`, { method: "POST", body: JSON.stringify(form) });
+      setForm({ ...form, item_name: "", quantity_note: "" });
+      onDone();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
   return (
-    <form className="stack" onSubmit={async (e) => { e.preventDefault(); await api(`/profiles/${profileId}/supplies`, { method: "POST", body: JSON.stringify(form) }); onDone(); }}>
-      <Field label="Title"><input value={form.item_name} onChange={set("item_name")} required /></Field>
+    <form className="stack" onSubmit={submit}>
+      <Field label={nutrition ? "What food or feeding supply?" : "Item"}>
+        <input placeholder={nutrition ? "e.g. Tube feeding formula" : "e.g. Baby formula"} value={form.item_name} onChange={set("item_name")} required />
+      </Field>
       <div className="grid-2">
-        <Field label="Category">
-          <Select value={form.category} onChange={set("category")} options={["food", "formula", "sanitary", "specialized_nutrition", "other"].map((value) => ({ value, label: value }))} />
-        </Field>
+        {!nutrition && (
+          <Field label="Category">
+            <Select value={form.category} onChange={set("category")} options={["food", "formula", "sanitary", "other"].map((value) => ({ value, label: value }))} />
+          </Field>
+        )}
         <Field label="Status">
           <Select value={form.status} onChange={set("status")} options={["ok", "low", "shortage"].map((value) => ({ value, label: value }))} />
         </Field>
       </div>
+      <Field label="How much is left?"><input placeholder="e.g. 2 days" value={form.quantity_note} onChange={set("quantity_note")} /></Field>
+      <ErrorText>{error}</ErrorText>
       <Button type="submit">Report a shortage</Button>
     </form>
   );

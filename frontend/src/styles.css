@@ -317,3 +317,30 @@ th, td { padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align:
   font-size: 13px;
   letter-spacing: 0.04em;
 }
+
+/* Care page: pick a need first */
+.need-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.need-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-height: 88px;
+  padding: 12px;
+  text-align: start;
+  font: inherit;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  cursor: pointer;
+}
+.need-tile.active {
+  border: 2px solid var(--green);
+  background: var(--green-soft);
+}
+.need-tile:focus-visible { outline: 3px solid var(--green-2); outline-offset: 2px; }

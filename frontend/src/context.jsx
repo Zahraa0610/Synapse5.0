@@ -197,6 +197,19 @@ const ar = {
   "Other (write it)": "غير ذلك (اكتبه)",
   "Which device?": "ما هو الجهاز؟",
   "Device name (optional)": "اسم الجهاز (اختياري)",
+  "What do you need help with?": "بماذا تحتاج المساعدة؟",
+  "Choose one to see what is recorded and add information.": "اختر واحداً لرؤية المسجّل وإضافة المعلومات.",
+  "recorded": "مسجّل",
+  "Specialized nutrition": "تغذية خاصة",
+  "Oxygen, ventilator, other devices": "أكسجين، جهاز تنفس، أجهزة أخرى",
+  "Sessions and open seats": "الجلسات والمقاعد المتاحة",
+  "Stage, due date, risk": "المرحلة، موعد الولادة، الخطورة",
+  "Tube feeding, special diets": "تغذية بالأنبوب، حميات خاصة",
+  "Food, formula, hygiene": "طعام، حليب أطفال، نظافة",
+  "Missed": "فائت",
+  "Item": "المادة",
+  "What food or feeding supply?": "ما الطعام أو مستلزم التغذية؟",
+  "How much is left?": "كم تبقى؟",
 };
 
 const I18nContext = createContext(null);
