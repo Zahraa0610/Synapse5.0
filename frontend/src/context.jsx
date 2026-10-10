@@ -27,7 +27,7 @@ const ar = {
   "6-digit code": "رمز من 6 أرقام",
   "Family": "العائلة",
   "Family (renting)": "عائلة (مستأجرة)",
-  "Driver": "سائق",
+  "Can drive": "يستطيع القيادة",
   "Shelter": "المركز",
   "Try a role": "جرّب دوراً",
   "Create your account": "أنشئ حسابك",

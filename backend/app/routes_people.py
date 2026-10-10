@@ -217,7 +217,8 @@ def update_transport(item_id):
     status = (payload().get("status") or "").strip()
     if status not in {"accepted", "completed", "cancelled"}:
         return error("Choose a status", 400)
-    provider = g.user.role == "ngo" or (g.user.role == "volunteer" and (g.user.helper_type == "transport" or g.user.offers_driving))
+    # Volunteers who said at sign-up that they can drive can take ride requests.
+    provider = g.user.role == "ngo" or (g.user.role == "volunteer" and g.user.offers_driving)
     owner = _owns_transport(item)
     if status in {"accepted", "completed"} and not provider and g.user.role != "shelter_coordinator":
         return error("A transport provider accepts this request", 403)
