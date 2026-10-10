@@ -140,10 +140,22 @@ export function RegisterPage() {
     license_body: "",
     license_expires: "",
     shelter_id: "",
+    id_document_type: "lebanese_id",
+    id_document_number: "",
+    offers_driving: false,
+    car_model: "",
+    car_plate: "",
+    car_seats: "",
+    car_wheelchair: false,
   });
   const [file, setFile] = useState(null);
   const [captured, setCaptured] = useState(false);
-  const set = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
+  const set = (key) => (event) => {
+    const value = event.target.type === "checkbox" ? event.target.checked : event.target.value;
+    setForm((current) => ({ ...current, [key]: value }));
+  };
+  const volunteer = form.role === "volunteer";
+  const totalSteps = CLINICAL.has(form.role) || volunteer ? 3 : 2;
   useEffect(() => { ensureShelters(); }, []);
 
   async function ensureShelters() {
@@ -164,6 +176,7 @@ export function RegisterPage() {
       }
     }
     if (CLINICAL.has(form.role)) setStep("verify");
+    else if (form.role === "volunteer") setStep("identity");
     else setStep("review");
   }
 
@@ -173,6 +186,7 @@ export function RegisterPage() {
     try {
       const user = await register({
         ...form,
+        offers_driving: form.offers_driving || form.helper_type === "transport",
         shelter_id: form.shelter_id || null,
         phone: form.phone === "+961" ? null : form.phone,
       });
@@ -214,7 +228,7 @@ export function RegisterPage() {
         {step === "account" && (
           <>
             <div>
-              <p className="small muted">{CLINICAL.has(form.role) ? "Step 1 of 3" : "Step 1 of 2"}</p>
+              <p className="small muted">{t("Step")} 1 / {totalSteps}</p>
               <h1>{t("Create your account")}</h1>
             </div>
             <div>
@@ -249,8 +263,9 @@ export function RegisterPage() {
         {step === "verify" && (
           <>
             <div>
-              <p className="small muted">Step 2 of 3</p>
-              <h1>{t("Verify who you are")}</h1>
+              <p className="small muted">{t("Step")} 2 / 3</p>
+              <h1>{t("Verify your license")}</h1>
+              <p className="small muted">{t("Only doctors, nurses and psychologists need a license check.")}</p>
             </div>
             <Field label="Specialty"><input value={form.specialty} onChange={set("specialty")} /></Field>
             <Field label="License number"><input value={form.license_number} onChange={set("license_number")} /></Field>
@@ -263,10 +278,48 @@ export function RegisterPage() {
             </div>
           </>
         )}
+        {step === "identity" && (
+          <>
+            <div>
+              <p className="small muted">{t("Step")} 2 / 3</p>
+              <h1>{t("Your ID and car")}</h1>
+              <p className="small muted">{t("Shelters need to know who is helping. No license is needed.")}</p>
+            </div>
+            <fieldset className="check-group">
+              <legend>{t("ID document")}</legend>
+              <label className="check"><input type="radio" name="id_type" checked={form.id_document_type === "lebanese_id"} onChange={() => setForm({ ...form, id_document_type: "lebanese_id" })} /> {t("Lebanese ID")}</label>
+              <label className="check"><input type="radio" name="id_type" checked={form.id_document_type === "passport"} onChange={() => setForm({ ...form, id_document_type: "passport" })} /> {t("Passport")}</label>
+            </fieldset>
+            <Field label={form.id_document_type === "passport" ? "Passport number" : "Lebanese ID number"}>
+              <input value={form.id_document_number} onChange={set("id_document_number")} required />
+            </Field>
+            <Field label="Photo of the ID (optional)"><input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" onChange={(e) => setFile(e.target.files?.[0] || null)} /></Field>
+            <div className="check-group">
+              <label className="check"><input type="checkbox" checked={form.offers_driving || form.helper_type === "transport"} onChange={set("offers_driving")} /> {t("I can drive people or supplies")}</label>
+            </div>
+            {(form.offers_driving || form.helper_type === "transport") && (
+              <div className="card stack">
+                <h3>{t("Car details")}</h3>
+                <div className="grid-2">
+                  <Field label="Car make and model"><input value={form.car_model} onChange={set("car_model")} placeholder={t("e.g. Kia Picanto, white")} required /></Field>
+                  <Field label="Plate number"><input value={form.car_plate} onChange={set("car_plate")} placeholder="B 123456" required /></Field>
+                  <Field label="Free seats"><input type="number" min="1" max="8" value={form.car_seats} onChange={set("car_seats")} /></Field>
+                </div>
+                <div className="check-group">
+                  <label className="check"><input type="checkbox" checked={form.car_wheelchair} onChange={set("car_wheelchair")} /> {t("Fits a wheelchair")}</label>
+                </div>
+              </div>
+            )}
+            <div className="action-row">
+              <Button type="button" ghost onClick={() => setStep("account")}>{t("Back")}</Button>
+              <Button type="button" onClick={(e) => { const f = e.currentTarget.form; if (f.reportValidity()) setStep("review"); }}>{t("Continue")}</Button>
+            </div>
+          </>
+        )}
         {step === "review" && (
           <>
             <div>
-              <p className="small muted">{CLINICAL.has(form.role) ? "Step 3 of 3" : "Step 2 of 2"}</p>
+              <p className="small muted">{t("Step")} {totalSteps} / {totalSteps}</p>
               <h1>{t("Check your details")}</h1>
             </div>
             <div className="card stack">
@@ -274,6 +327,8 @@ export function RegisterPage() {
               <span className="muted">{ROLES.find(([value]) => value === form.role)?.[1]}</span>
               {form.license_number && <span>{t("License number")}: {form.license_number}</span>}
               {form.license_body && <span>{form.license_body}</span>}
+              {volunteer && <span>{t(form.id_document_type === "passport" ? "Passport" : "Lebanese ID")}: {form.id_document_number}</span>}
+              {volunteer && (form.offers_driving || form.helper_type === "transport") && <span>{t("Car")}: {form.car_model} · {form.car_plate}</span>}
               <div className="stack">
                 <span><Pill value="approved" /> {t("Account created")}</span>
                 {CLINICAL.has(form.role) && <span><Pill value="documents_received" /> {t("Documents received")}</span>}
@@ -283,7 +338,7 @@ export function RegisterPage() {
             </div>
             <ErrorText>{error}</ErrorText>
             <div className="action-row">
-              <Button type="button" ghost onClick={() => setStep(CLINICAL.has(form.role) ? "verify" : "account")}>{t("Back")}</Button>
+              <Button type="button" ghost onClick={() => setStep(CLINICAL.has(form.role) ? "verify" : volunteer ? "identity" : "account")}>{t("Back")}</Button>
               <Button type="submit">{t("Confirm and continue")}</Button>
             </div>
           </>

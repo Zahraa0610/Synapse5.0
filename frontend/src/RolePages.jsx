@@ -125,18 +125,13 @@ const TASK_KIND_LABELS = { delivery: "Supply delivery", companion: "Hospital com
 function VolunteerHeader() {
   const { user } = useAuth();
   const { t } = useI18n();
-  const clinical = user.helper_type === "medical_student" || user.helper_type === "nursing_student";
   return (
     <div className="card stack">
       <div>
         <h2>{user.full_name}</h2>
-        <p className="small muted">{t(HELPER_LABELS[user.helper_type] || "Volunteer")}</p>
+        <p className="small muted">{[t(HELPER_LABELS[user.helper_type] || "Volunteer"), user.offers_driving ? `${t("Driver")} · ${user.car_model || ""}` : null].filter(Boolean).join(" · ")}</p>
       </div>
-      <Note>
-        {clinical
-          ? t("You can deliver supplies and accompany patients. Clinical tasks need a verified license.")
-          : t("You can deliver supplies and accompany patients. This is non-medical help.")}
-      </Note>
+      <Note>{t("You can deliver supplies and accompany patients. This is non-medical help.")}</Note>
     </div>
   );
 }

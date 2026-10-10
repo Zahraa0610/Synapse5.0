@@ -770,6 +770,12 @@ function PersonSelect({ profiles, value, onChange }) {
   );
 }
 
+const ROLE_NAMES = {
+  caregiver: "User / caregiver", volunteer: "Volunteer", doctor: "Doctor", nurse: "Nurse", psychologist: "Psychologist",
+  shelter_coordinator: "Shelter coordinator", donor: "Donor", ministry: "Ministry of Public Health", ngo: "NGO",
+};
+const VERIFICATION_NAMES = { documents_received: "Documents received", checking: "Checking", approved: "Approved" };
+
 export function ProfilePage() {
   const { user, logout } = useAuth();
   const { t } = useI18n();
@@ -779,8 +785,16 @@ export function ProfilePage() {
       <div className="card stack">
         <div className="spread"><span>{t("Email")}</span><span>{user.email}</span></div>
         <div className="spread"><span>{t("Phone number")}</span><span>{user.phone}</span></div>
-        <div className="spread"><span>Role</span><span>{user.role}</span></div>
-        <div className="spread"><span>{t("Status")}</span><Pill value={user.verification_status}>{user.verification_status}</Pill></div>
+        <div className="spread"><span>{t("Role")}</span><span>{t(ROLE_NAMES[user.role] || user.role)}</span></div>
+        {user.verification_status !== "not_required" && (
+          <div className="spread"><span>{t("Verification")}</span><Pill value={user.verification_status}>{t(VERIFICATION_NAMES[user.verification_status] || user.verification_status)}</Pill></div>
+        )}
+        {user.role === "volunteer" && user.id_document_number && (
+          <div className="spread"><span>{t(user.id_document_type === "passport" ? "Passport" : "Lebanese ID")}</span><span>{user.id_document_number}</span></div>
+        )}
+        {user.role === "volunteer" && user.offers_driving && (
+          <div className="spread"><span>{t("Car")}</span><span>{[user.car_model, user.car_plate, user.car_seats ? `${user.car_seats} ${t("seats")}` : null, user.car_wheelchair ? t("Fits a wheelchair") : null].filter(Boolean).join(" · ")}</span></div>
+        )}
       </div>
       <Button ghost onClick={logout}>Sign out</Button>
     </div>

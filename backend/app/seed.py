@@ -90,6 +90,8 @@ def seed():
         "volunteer",
         helper_type="companion",
         verification_status="not_required",
+        id_document_type="lebanese_id",
+        id_document_number="LB-00451287",
     )
     user(
         "Karim Daoud",
@@ -97,6 +99,12 @@ def seed():
         "+96170111003",
         "volunteer",
         helper_type="transport",
+        id_document_type="passport",
+        id_document_number="RL1234567",
+        offers_driving=True,
+        car_model="Kia Picanto (white)",
+        car_plate="B 123456",
+        car_seats=3,
     )
     nadine = user(
         "Nadine Saab",

@@ -24,6 +24,14 @@ class User(db.Model):
     helper_type = db.Column(db.String(40))
     shelter_id = db.Column(db.Integer, db.ForeignKey("shelters.id"))
     license_file = db.Column(db.String(255))
+    # Volunteers: identity document, and car details if they offer drives
+    id_document_type = db.Column(db.String(20))  # "lebanese_id" or "passport"
+    id_document_number = db.Column(db.String(60))
+    offers_driving = db.Column(db.Boolean, nullable=False, default=False)
+    car_model = db.Column(db.String(80))
+    car_plate = db.Column(db.String(30))
+    car_seats = db.Column(db.Integer)
+    car_wheelchair = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
 
 
