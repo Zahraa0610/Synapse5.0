@@ -7,6 +7,15 @@ import { Bars, Button, ErrorText, Field, Note, Pill, Select } from "./ui";
 
 const ENTRY_TYPES = ["condition", "allergy", "medication", "operation", "lab", "report", "vaccine", "note"];
 const RELATIONS = ["child", "parent", "spouse", "other"];
+const DEVICE_KINDS = [
+  { value: "oxygen", label: "Oxygen cylinder" },
+  { value: "concentrator", label: "Oxygen concentrator" },
+  { value: "ventilator", label: "Ventilator" },
+  { value: "suction", label: "Suction device" },
+  { value: "feeding", label: "Feeding pump" },
+  { value: "electricity", label: "Other electric device" },
+  { value: "other", label: "Other (write it)" },
+];
 
 function useData(path) {
   const [data, setData] = useState(null);
@@ -39,8 +48,8 @@ export function HomePage() {
   return (
     <div className="stack">
       <div>
-        <p className="muted">Ma'ak</p>
-        <h1>Marhaba, {first}</h1>
+        <p className="muted">{user.shelter_name || t("Ma'ak")}</p>
+        <h1>{t("Welcome")}, {first}</h1>
       </div>
       <ErrorText>{error}</ErrorText>
       {data && (
@@ -60,7 +69,7 @@ export function HomePage() {
           </section>
           <div className="grid-2">
             <Link className="card" to="/passport"><strong>{t("Health passport")}</strong><p className="small muted">History, vaccines, files</p></Link>
-            <Link className="card" to="/care"><strong>{t("Care needs")}</strong><p className="small muted">Oxygen, dialysis, food</p></Link>
+            <Link className="card" to="/care"><strong>{t("Care needs")}</strong><p className="small muted">{t("Devices, dialysis, pregnancy, food")}</p></Link>
             <Link className="card" to="/requests"><strong>{t("Request transport")}</strong><p className="small muted">Rides and complaints</p></Link>
             <Link className="card" to="/emergency"><strong>{t("Emergency card")}</strong><p className="small muted">Works offline once saved</p></Link>
           </div>
@@ -154,7 +163,8 @@ export function PassportPage() {
           <div className="spread">
             <div>
               <h2>{passport.data.profile.full_name}</h2>
-              <p className="small muted">{passport.data.profile.shelter_name} · {passport.data.profile.blood_type || "Blood type not set"}</p>
+              <p className="passport-id">{t("ID")} {passport.data.profile.passport_id}</p>
+              <p className="small muted">{[passport.data.profile.shelter_name, passport.data.profile.blood_type || t("Blood type not set")].filter(Boolean).join(" · ")}</p>
             </div>
             <Pill value={passport.data.profile.criticality.level}>{passport.data.profile.criticality.confirmed ? "Confirmed" : "Suggested"} {passport.data.profile.criticality.level}</Pill>
           </div>
@@ -339,10 +349,10 @@ export function CarePage() {
             <p className="small muted">{t("Suggested from reported supplies. A coordinator or clinician confirms it.")} {t("This supports a decision. It does not assign care.")}</p>
           </div>
           <section className="card stack">
-            <h3>{t("Oxygen and power")}</h3>
+            <h3>{t("Medical devices and power")}</h3>
             {data.dependencies.map((item) => (
               <div key={item.id}>
-                <div className="spread"><strong>{item.device_name || item.kind}</strong><span>{item.supply_level_percent ?? "—"}%</span></div>
+                <div className="spread"><strong>{item.device_name || t(DEVICE_KINDS.find((kind) => kind.value === item.kind)?.label || item.kind)}</strong><span>{item.supply_level_percent ?? "—"}%</span></div>
                 <Bars value={item.supply_level_percent || 0} tone={(item.supply_level_percent || 0) < 25 ? "rose" : ""} />
                 <p className="small muted">{item.hours_remaining ?? "—"} {t("Hours left")}</p>
               </div>
@@ -421,9 +431,11 @@ function DependencyForm({ profileId, onDone }) {
     <form className="stack" onSubmit={async (event) => { event.preventDefault(); await api(`/profiles/${profileId}/dependencies`, { method: "POST", body: JSON.stringify(form) }); onDone(); }}>
       <div className="grid-2">
         <Field label="Device">
-          <Select value={form.kind} onChange={set("kind")} options={["oxygen", "electricity", "ventilator", "concentrator", "suction", "feeding"].map((value) => ({ value, label: value }))} />
+          <Select value={form.kind} onChange={set("kind")} options={DEVICE_KINDS} />
         </Field>
-        <Field label="Title"><input placeholder="Device name" value={form.device_name} onChange={set("device_name")} /></Field>
+        <Field label={form.kind === "other" ? "Which device?" : "Device name (optional)"}>
+          <input placeholder={form.kind === "other" ? "e.g. CPAP machine" : "e.g. Philips concentrator"} value={form.device_name} onChange={set("device_name")} required={form.kind === "other"} />
+        </Field>
       </div>
       <div className="grid-2">
         <Field label="Supply percent"><input type="number" value={form.supply_level_percent} onChange={set("supply_level_percent")} /></Field>

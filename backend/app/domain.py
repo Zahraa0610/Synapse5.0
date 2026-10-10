@@ -66,6 +66,7 @@ def user_public(user):
         "verification_status": user.verification_status,
         "helper_type": user.helper_type,
         "shelter_id": user.shelter_id,
+        "shelter_name": (db.session.get(Shelter, user.shelter_id).name if user.shelter_id and db.session.get(Shelter, user.shelter_id) else None),
         "has_license_file": bool(user.license_file),
     }
 
@@ -162,11 +163,29 @@ def public_need_reasons(profile):
     return reasons
 
 
+def passport_id_for(profile):
+    """Readable passport ID, e.g. MAK-0012-4821. The second block is a check
+    number so a typo in the first block is caught instead of opening someone else."""
+    return f"MAK-{profile.id:04d}-{(profile.id * 7919 + 1031) % 10000:04d}"
+
+
+def profile_id_from_passport_id(text):
+    """Turn 'MAK-0012-4821' (any case, spaces allowed) back into 12, or None."""
+    parts = str(text or "").strip().upper().replace(" ", "").split("-")
+    if len(parts) != 3 or parts[0] != "MAK" or not parts[1].isdigit() or not parts[2].isdigit():
+        return None
+    pid = int(parts[1])
+    if f"{(pid * 7919 + 1031) % 10000:04d}" != parts[2].zfill(4):
+        return None
+    return pid
+
+
 def profile_public(profile, include_contact=True):
     shelter = db.session.get(Shelter, profile.shelter_id) if profile.shelter_id else None
     crit = criticality_for(profile)
     data = {
         "id": profile.id,
+        "passport_id": passport_id_for(profile),
         "full_name": profile.full_name,
         "relationship": profile.relationship,
         "date_of_birth": iso(profile.date_of_birth),
@@ -192,6 +211,7 @@ def roster_row(profile):
     crit = criticality_for(profile)
     return {
         "id": profile.id,
+        "passport_id": passport_id_for(profile),
         "full_name": profile.full_name,
         "age": age_years(profile.date_of_birth),
         "relationship": profile.relationship,

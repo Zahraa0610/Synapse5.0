@@ -183,6 +183,20 @@ const ar = {
   "Sending…": "جارٍ الإرسال…",
   "Shelter you are staying at": "المركز الذي تقيم فيه",
   "Not in a shelter": "لست في مركز إيواء",
+  "Welcome": "مرحباً",
+  "ID": "الرقم",
+  "Blood type not set": "زمرة الدم غير محددة",
+  "Medical devices and power": "الأجهزة الطبية والكهرباء",
+  "Devices, dialysis, pregnancy, food": "الأجهزة، غسيل الكلى، الحمل، الغذاء",
+  "Oxygen cylinder": "قارورة أكسجين",
+  "Oxygen concentrator": "مكثّف أكسجين",
+  "Ventilator": "جهاز تنفس",
+  "Suction device": "جهاز شفط",
+  "Feeding pump": "مضخة تغذية",
+  "Other electric device": "جهاز كهربائي آخر",
+  "Other (write it)": "غير ذلك (اكتبه)",
+  "Which device?": "ما هو الجهاز؟",
+  "Device name (optional)": "اسم الجهاز (اختياري)",
 };
 
 const I18nContext = createContext(null);

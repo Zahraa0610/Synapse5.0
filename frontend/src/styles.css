@@ -309,3 +309,11 @@ th, td { padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align:
   .stat-row, .grid-2, .grid-3, .card-grid.two { grid-template-columns: 1fr; }
   h1 { font-size: 1.85rem; }
 }
+
+/* Passport ID under the patient name */
+.passport-id {
+  margin: 2px 0;
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+}

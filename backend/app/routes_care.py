@@ -17,7 +17,7 @@ from .models import (
 
 care_bp = Blueprint("care", __name__)
 
-DEPENDENCY_KINDS = ["oxygen", "electricity", "ventilator", "concentrator", "suction", "feeding"]
+DEPENDENCY_KINDS = ["oxygen", "electricity", "ventilator", "concentrator", "suction", "feeding", "other"]
 SUPPLY_CATEGORIES = ["food", "formula", "sanitary", "specialized_nutrition", "other"]
 
 
@@ -125,6 +125,8 @@ def add_dependency(profile_id):
     kind = (data.get("kind") or "").strip()
     if kind not in DEPENDENCY_KINDS:
         return error("Choose the kind of medical dependency", 400)
+    if kind == "other" and not (data.get("device_name") or "").strip():
+        return error("Write the name of the device", 400)
     item = Dependency(
         profile_id=profile.id,
         kind=kind,
