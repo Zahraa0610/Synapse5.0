@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { api, formatWhen } from "./api";
 import { useAuth, useI18n } from "./context";
-import { ComplaintForm, useData } from "./PatientPages";
+import { ComplaintForm, CriticalityControl, useData } from "./PatientPages";
 import { Bars, Button, Empty, ErrorText, Field, Note, Pill, Select } from "./ui";
 
 /* ------------------------------------------------------------------ */
@@ -713,13 +713,11 @@ export function ShelterResidentsPage() {
 }
 
 function ResidentTable({ rows, reload, t }) {
-  const review = useAction(reload);
   return (
     <div className="card">
-      <ErrorText>{review.error}</ErrorText>
       <div className="table-wrap">
         <table className="data">
-          <thead><tr><th>{t("Name")}</th><th>{t("Passport ID")}</th><th>{t("Age")}</th><th>{t("Status")}</th><th>{t("Confirm")}</th></tr></thead>
+          <thead><tr><th>{t("Name")}</th><th>{t("Passport ID")}</th><th>{t("Age")}</th><th>{t("Suggested")}</th><th>{t("Patient status")}</th></tr></thead>
           <tbody>
             {rows.map((row) => (
               <tr key={row.id}>
@@ -727,14 +725,7 @@ function ResidentTable({ rows, reload, t }) {
                 <td className="mono small">{row.passport_id}</td>
                 <td>{row.age ?? "—"}</td>
                 <td><StatusPill value={row.criticality.level} />{!row.criticality.confirmed && <div className="small muted">{t("Suggested")}</div>}</td>
-                <td>
-                  <StatusSelect
-                    label="Confirm"
-                    value={row.criticality.level === "critical" ? "critical" : "non_critical"}
-                    options={["critical", "non_critical"]}
-                    onChange={(classification) => review.run(`/profiles/${row.id}/criticality-review`, "POST", { classification })}
-                  />
-                </td>
+                <td><CriticalityControl key={`${row.id}-${row.criticality.level}`} profile={row} onChanged={reload} /></td>
               </tr>
             ))}
           </tbody>
@@ -1091,7 +1082,7 @@ export function DoctorPage() {
                     <td className="mono small">{p.passport_id}</td>
                     <td>{p.age ?? "—"}</td>
                     <td>{p.shelter_name || "—"}</td>
-                    <td><StatusPill value={p.criticality.level} /></td>
+                    <td><CriticalityControl key={`${p.id}-${p.criticality.level}`} profile={p} /></td>
                   </tr>
                 ))}
               </tbody>

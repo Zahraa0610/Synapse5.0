@@ -787,9 +787,43 @@ export function ProfilePage() {
   );
 }
 
+// Lets a shelter coordinator or approved doctor/nurse set a patient as critical or not.
+export function CriticalityControl({ profile, onChanged }) {
+  const { t } = useI18n();
+  const [level, setLevel] = useState(profile.criticality.level === "critical" ? "critical" : "non_critical");
+  const [error, setError] = useState("");
+  const [saved, setSaved] = useState(false);
+  async function change(next) {
+    const previous = level;
+    setLevel(next);
+    setError("");
+    setSaved(false);
+    try {
+      await api(`/profiles/${profile.id}/criticality-review`, { method: "POST", body: JSON.stringify({ classification: next }) });
+      setSaved(true);
+      onChanged?.();
+    } catch (err) {
+      setLevel(previous);
+      setError(err.message);
+    }
+  }
+  return (
+    <div className="crit-control">
+      <div className="segment" role="group" aria-label={t("Patient status")}>
+        <button type="button" className={level === "critical" ? "active danger" : ""} aria-pressed={level === "critical"} onClick={() => change("critical")}>{t("Critical")}</button>
+        <button type="button" className={level === "non_critical" ? "active" : ""} aria-pressed={level === "non_critical"} onClick={() => change("non_critical")}>{t("Not critical")}</button>
+      </div>
+      {saved && <span className="small muted">{t("Saved")}</span>}
+      <ErrorText>{error}</ErrorText>
+    </div>
+  );
+}
+
 // Open any health passport with its ID (e.g. MAK-0012-6059). Works for every signed-in role.
 export function PassportLookupPage() {
   const { t } = useI18n();
+  const { user } = useAuth();
+  const canClassify = ["doctor", "nurse", "shelter_coordinator"].includes(user.role);
   const initial = new URLSearchParams(window.location.search).get("id") || "";
   const [query, setQuery] = useState(initial);
   const [result, setResult] = useState(null);
@@ -831,8 +865,14 @@ export function PassportLookupPage() {
                 <p className="passport-id">{t("ID")} {profile.passport_id}</p>
                 <p className="small muted">{[profile.age != null ? `${profile.age} yrs` : null, profile.sex, profile.blood_type, profile.shelter_name].filter(Boolean).join(" · ")}</p>
               </div>
-              <Pill value={profile.criticality.level}>{profile.criticality.level}</Pill>
+              {!canClassify && <Pill value={profile.criticality.level}>{t(profile.criticality.level === "critical" ? "Critical" : "Not critical")}</Pill>}
             </div>
+            {canClassify && (
+              <div className="stack">
+                <span className="small muted">{t("Patient status")}</span>
+                <CriticalityControl key={profile.id} profile={profile} />
+              </div>
+            )}
           </div>
           <div className="card">
             {result.entries.map((entry) => <EntryRow key={entry.id} entry={entry} readOnly onChanged={() => open(profile.passport_id)} />)}
