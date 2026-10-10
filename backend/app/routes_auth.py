@@ -20,29 +20,28 @@ def register():
     role = (data.get("role") or "").strip()
     full_name = (data.get("full_name") or "").strip()
     email = (data.get("email") or "").strip().lower() or None
-    raw_phone = (data.get("phone") or "").strip()
-    phone = normalize_phone(raw_phone) if raw_phone and raw_phone != "+961" else None
-    if raw_phone and raw_phone != "+961" and not phone:
-        return error("Enter your full phone number with the country code, e.g. +961 70 123 456", 400)
+    # A WhatsApp-verified phone number is required. Email is optional; a password is
+    # only needed with an email (phone sign-in uses a WhatsApp code instead).
+    phone = normalize_phone(data.get("phone"))
     password = data.get("password") or ""
     if role not in ROLES:
         return error("Choose a role", 400)
     if not full_name:
         return error("Enter your name", 400)
-    if not email and not phone:
-        return error("Enter a phone number or email", 400)
-    if len(password) < 8:
+    if not phone:
+        return error("Enter your phone number with the country code, e.g. +961 70 123 456", 400)
+    if email and len(password) < 8:
+        return error("To sign in with your email, choose a password of at least 8 characters", 400)
+    if password and len(password) < 8:
         return error("Use at least 8 characters for the password", 400)
     if email and User.query.filter_by(email=email).first():
         return error("An account with this email already exists", 409)
     if phone and User.query.filter_by(phone=phone).first():
         return error("An account with this phone number already exists", 409)
-    phone_code = None
-    if phone:
-        # The number must have been confirmed with a WhatsApp code in the last 10 minutes.
-        phone_code = _latest_code(phone, "signup")
-        if not phone_code or not phone_code.verified or aware(phone_code.expires_at) < _now():
-            return error("Confirm your phone number with the WhatsApp code first", 400)
+    # The number must have been confirmed with a WhatsApp code in the last 10 minutes.
+    phone_code = _latest_code(phone, "signup")
+    if not phone_code or not phone_code.verified or aware(phone_code.expires_at) < _now():
+        return error("Confirm your phone number with the WhatsApp code first", 400)
 
     # Volunteers identify themselves with a Lebanese ID or passport (no license).
     id_type = (data.get("id_document_type") or "").strip() or None
@@ -75,7 +74,7 @@ def register():
         full_name=full_name,
         email=email,
         phone=phone,
-        password_hash=generate_password_hash(password),
+        password_hash=generate_password_hash(password) if password else None,
         role=role,
         specialty=(data.get("specialty") or "").strip() or None,
         license_number=(data.get("license_number") or "").strip() or None,
@@ -92,10 +91,9 @@ def register():
         car_seats=int(data.get("car_seats")) if role == "volunteer" and offers_driving and str(data.get("car_seats") or "").isdigit() else None,
         car_wheelchair=as_bool(data.get("car_wheelchair")) if role == "volunteer" and offers_driving else False,
     )
-    user.phone_verified = bool(phone)
+    user.phone_verified = True
     db.session.add(user)
-    if phone_code:
-        db.session.delete(phone_code)
+    db.session.delete(phone_code)
     if role == "caregiver":
         # Every family account starts with a health passport for the person themselves.
         import secrets
@@ -280,6 +278,13 @@ def clinicians():
             ]
         }
     )
+
+
+@auth_bp.get("/shelters/names")
+def shelter_names():
+    """Public list for the sign-up form: shelter names and regions only."""
+    rows = Shelter.query.order_by(Shelter.name.asc()).all()
+    return jsonify({"shelters": [{"id": row.id, "name": row.name, "region": row.region} for row in rows]})
 
 
 @auth_bp.get("/shelters")

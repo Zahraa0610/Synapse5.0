@@ -54,8 +54,18 @@ class MaakApiTest(unittest.TestCase):
     def sign_in(self, who, email, password):
         self.tokens[who] = self.call("post", "/auth/login", json={"email": email, "password": password})["token"]
 
+    def verified_phone(self):
+        """A new phone number confirmed with a WhatsApp code, ready for sign-up."""
+        MaakApiTest._phone_counter = getattr(MaakApiTest, "_phone_counter", 500) + 1
+        phone = f"+9617100{MaakApiTest._phone_counter:04d}"
+        self.call("post", "/auth/send-code", json={"phone": phone, "purpose": "signup"})
+        self.call("post", "/auth/verify-code", json={"phone": phone, "code": SENT_CODES[phone]})
+        return phone
+
     def register(self, who, **body):
-        body.setdefault("password", "password-123")
+        if body.get("email"):
+            body.setdefault("password", "password-123")
+        body.setdefault("phone", self.verified_phone())
         result = self.call("post", "/auth/register", json=body, expect=201)
         self.tokens[who] = result["token"]
         return result["user"]
@@ -76,6 +86,12 @@ class MaakApiTest(unittest.TestCase):
         self.call("post", "/auth/verify-code", json={"phone": phone, "code": SENT_CODES[phone]})
         family = self.register("family", role="caregiver", full_name="Rania Haddad", phone=phone, shelter_id=alay["id"])
         self.assertTrue(family["phone_verified"])
+        self.assertIsNone(family["email"])  # email is optional
+
+        # A phone number is required; an email needs a password
+        self.call("post", "/auth/register", json={"role": "donor", "full_name": "No phone", "email": "np@x.com", "password": "password-123"}, expect=400)
+        self.call("post", "/auth/register", json={"role": "donor", "full_name": "No pass", "email": "nopass@x.com", "phone": self.verified_phone()}, expect=400)
+        self.assertEqual(len(self.call("get", "/shelters/names")["shelters"]), 2)  # sign-up form, no login
 
         # Login with a WhatsApp code, single use
         self.call("post", "/auth/send-code", json={"phone": phone, "purpose": "login"})
@@ -84,14 +100,15 @@ class MaakApiTest(unittest.TestCase):
         self.call("post", "/auth/login", json={"phone": phone, "code": code}, expect=401)
         self.call("post", "/auth/login", json={"email": "nobody@x.com", "password": "x"}, expect=401)
 
-        # Passwords are stored hashed
-        with self.app.app_context():
-            stored = User.query.filter_by(phone=phone).first()
-            self.assertNotIn("password-123", stored.password_hash)
-
         # Other roles
         self.register("coordinator", role="shelter_coordinator", full_name="Jad", email="jad@x.com", shelter_id=alay["id"])
-        self.call("post", "/auth/register", json={"role": "volunteer", "full_name": "Rana", "email": "rana@x.com", "password": "password-123"}, expect=400)
+        self.sign_in("coordinator", "jad@x.com", "password-123")  # email + password still works
+
+        # Passwords are stored hashed; phone-only accounts have no password at all
+        with self.app.app_context():
+            self.assertNotIn("password-123", User.query.filter_by(email="jad@x.com").first().password_hash)
+            self.assertIsNone(User.query.filter_by(phone=phone).first().password_hash)
+        self.call("post", "/auth/register", json={"role": "volunteer", "full_name": "Rana", "email": "rana@x.com", "password": "password-123", "phone": self.verified_phone()}, expect=400)
         self.register("volunteer", role="volunteer", full_name="Rana", email="rana@x.com", id_document_type="lebanese_id", id_document_number="LB1", offers_driving=True, car_model="Kia", car_plate="B 1")
         doctor = self.register("doctor", role="doctor", full_name="Dr Nadine", email="nadine@x.com", license_number="123")
         self.register("donor", role="donor", full_name="Lina", email="lina@x.com")

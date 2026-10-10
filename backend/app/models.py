@@ -14,7 +14,7 @@ class User(db.Model):
     full_name = db.Column(db.String(160), nullable=False)
     phone = db.Column(db.String(40), unique=True)
     email = db.Column(db.String(160), unique=True)
-    password_hash = db.Column(db.String(255), nullable=False)
+    password_hash = db.Column(db.String(255))  # only set when the person signs in with an email
     role = db.Column(db.String(40), nullable=False)
     specialty = db.Column(db.String(120))
     license_number = db.Column(db.String(80))
