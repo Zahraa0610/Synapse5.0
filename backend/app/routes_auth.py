@@ -1,10 +1,15 @@
-from flask import Blueprint, current_app, g, jsonify, request
+import re
+import secrets
+from datetime import datetime, timedelta, timezone
+
+from flask import Blueprint, g, jsonify, request
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from .domain import CLINICAL, ROLES, user_public
+from . import whatsapp
+from .domain import CLINICAL, ROLES, aware, user_public
 from .extensions import db
 from .http import as_bool, error, login_required, parse_date, payload, save_upload, token_for
-from .models import Shelter, User
+from .models import PhoneCode, Shelter, User
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -15,7 +20,10 @@ def register():
     role = (data.get("role") or "").strip()
     full_name = (data.get("full_name") or "").strip()
     email = (data.get("email") or "").strip().lower() or None
-    phone = (data.get("phone") or "").strip() or None
+    raw_phone = (data.get("phone") or "").strip()
+    phone = normalize_phone(raw_phone) if raw_phone and raw_phone != "+961" else None
+    if raw_phone and raw_phone != "+961" and not phone:
+        return error("Enter your full phone number with the country code, e.g. +961 70 123 456", 400)
     password = data.get("password") or ""
     if role not in ROLES:
         return error("Choose a role", 400)
@@ -23,12 +31,18 @@ def register():
         return error("Enter your name", 400)
     if not email and not phone:
         return error("Enter a phone number or email", 400)
-    if len(password) < 6:
-        return error("Use at least 6 characters for the password", 400)
+    if len(password) < 8:
+        return error("Use at least 8 characters for the password", 400)
     if email and User.query.filter_by(email=email).first():
         return error("An account with this email already exists", 409)
     if phone and User.query.filter_by(phone=phone).first():
         return error("An account with this phone number already exists", 409)
+    phone_code = None
+    if phone:
+        # The number must have been confirmed with a WhatsApp code in the last 10 minutes.
+        phone_code = _latest_code(phone, "signup")
+        if not phone_code or not phone_code.verified or aware(phone_code.expires_at) < _now():
+            return error("Confirm your phone number with the WhatsApp code first", 400)
 
     # Volunteers identify themselves with a Lebanese ID or passport (no license).
     id_type = (data.get("id_document_type") or "").strip() or None
@@ -78,8 +92,10 @@ def register():
         car_seats=int(data.get("car_seats")) if role == "volunteer" and offers_driving and str(data.get("car_seats") or "").isdigit() else None,
         car_wheelchair=as_bool(data.get("car_wheelchair")) if role == "volunteer" and offers_driving else False,
     )
+    user.phone_verified = bool(phone)
     db.session.add(user)
-    db.session.flush()
+    if phone_code:
+        db.session.delete(phone_code)
     if role == "caregiver":
         # Every family account starts with a health passport for the person themselves.
         import secrets
@@ -99,63 +115,117 @@ def register():
     return jsonify({"token": token_for(user), "user": user_public(user)}), 201
 
 
-def send_login_code(phone, code):
-    """Deliver a login code. No SMS/WhatsApp provider is connected yet, so the
-    code is printed in the server console; plug a provider in here."""
-    print(f" * Ma'ak login code for {phone}: {code} (valid 10 minutes)")
+# ---------------------------------------------------------------------------
+# WhatsApp verification codes
+# ---------------------------------------------------------------------------
+
+CODE_MINUTES = 10
+RESEND_SECONDS = 60
+MAX_ATTEMPTS = 5
+PHONE_PATTERN = re.compile(r"^\+[1-9]\d{7,14}$")
+
+
+def normalize_phone(raw):
+    """'+961 70 123 456' -> '+96170123456'. Returns None if it is not a full international number."""
+    phone = re.sub(r"[\s\-().]", "", raw or "")
+    if phone.startswith("00"):
+        phone = "+" + phone[2:]
+    return phone if PHONE_PATTERN.match(phone) else None
+
+
+def _now():
+    return datetime.now(timezone.utc)
+
+
+def _latest_code(phone, purpose):
+    rows = PhoneCode.query.filter_by(phone=phone, purpose=purpose).order_by(PhoneCode.created_at.desc()).all()
+    return rows[0] if rows else None
+
+
+def _check_code(phone, purpose, code):
+    """True if `code` matches the latest unexpired code. Counts wrong attempts."""
+    row = _latest_code(phone, purpose)
+    if not row or aware(row.expires_at) < _now() or row.attempts >= MAX_ATTEMPTS:
+        return None
+    if not check_password_hash(row.code_hash, (code or "").strip()):
+        row.attempts += 1
+        db.session.commit()
+        return None
+    return row
 
 
 @auth_bp.post("/auth/send-code")
 def send_code():
-    import secrets
-    from datetime import datetime, timedelta, timezone
-
-    phone = (payload().get("phone") or "").strip()
+    """Send a 6-digit code on WhatsApp. purpose = "signup" (new number) or "login"."""
+    data = payload()
+    purpose = (data.get("purpose") or "login").strip()
+    if purpose not in {"signup", "login"}:
+        return error("Unknown purpose", 400)
+    phone = normalize_phone(data.get("phone"))
     if not phone:
-        return error("Enter your phone number", 400)
-    body = {"ok": True, "message": "If this number has an account, a code was sent."}
-    user = User.query.filter_by(phone=phone).first()
-    if user:
-        code = f"{secrets.randbelow(1_000_000):06d}"
-        user.login_code_hash = generate_password_hash(code)
-        user.login_code_expires = datetime.now(timezone.utc) + timedelta(minutes=10)
-        db.session.commit()
-        send_login_code(phone, code)
-        if current_app.config.get("DEMO"):
-            body["demo_code"] = code  # demo mode only, so the video can show the flow
+        return error("Enter your full phone number with the country code, e.g. +961 70 123 456", 400)
+
+    existing = User.query.filter_by(phone=phone).first()
+    if purpose == "signup" and existing:
+        return error("An account with this phone number already exists. Sign in instead.", 409)
+    generic = {"ok": True, "phone": phone, "message": "If this number has an account, we sent a code on WhatsApp."}
+    if purpose == "login" and not existing:
+        return jsonify(generic)  # do not reveal which numbers have accounts
+
+    last = _latest_code(phone, purpose)
+    if last and (_now() - aware(last.created_at)).total_seconds() < RESEND_SECONDS:
+        return error("Please wait a minute before asking for another code.", 429)
+
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    db.session.add(
+        PhoneCode(
+            phone=phone,
+            purpose=purpose,
+            code_hash=generate_password_hash(code),
+            expires_at=_now() + timedelta(minutes=CODE_MINUTES),
+        )
+    )
+    db.session.commit()
+    try:
+        channel = whatsapp.send_code(phone, code)
+    except whatsapp.WhatsAppError as exc:
+        return error(str(exc), 502)
+    body = generic if purpose == "login" else {"ok": True, "phone": phone, "message": "We sent a code on WhatsApp."}
+    body["channel"] = channel
     return jsonify(body)
+
+
+@auth_bp.post("/auth/verify-code")
+def verify_code():
+    """Check a sign-up code before the account is created."""
+    data = payload()
+    phone = normalize_phone(data.get("phone"))
+    row = _check_code(phone, "signup", data.get("code")) if phone else None
+    if not row:
+        return error("The code is wrong or expired. Ask for a new one.", 400)
+    row.verified = True
+    db.session.commit()
+    return jsonify({"ok": True, "phone": phone})
 
 
 @auth_bp.post("/auth/login")
 def login():
     data = payload()
     email = (data.get("email") or "").strip().lower()
-    phone = (data.get("phone") or "").strip()
     password = data.get("password") or ""
-    code = (data.get("code") or "").strip()
 
-    user = None
     if email:
         user = User.query.filter_by(email=email).first()
-        if not user or not check_password_hash(user.password_hash, password):
+        if not user or not user.password_hash or not check_password_hash(user.password_hash, password):
             return error("Email or password is incorrect", 401)
-    elif phone:
-        from datetime import datetime, timezone
-
-        from .domain import aware
-
-        user = User.query.filter_by(phone=phone).first()
-        valid = (
-            user
-            and user.login_code_hash
-            and user.login_code_expires
-            and aware(user.login_code_expires) > datetime.now(timezone.utc)
-            and check_password_hash(user.login_code_hash, code)
-        )
-        if not valid:
+    elif data.get("phone"):
+        phone = normalize_phone(data.get("phone"))
+        user = User.query.filter_by(phone=phone).first() if phone else None
+        row = _check_code(phone, "login", data.get("code")) if user else None
+        if not row:
             return error("Phone number or code is incorrect", 401)
-        user.login_code_hash = None  # a code works once
-        user.login_code_expires = None
+        db.session.delete(row)  # a code works once
+        user.phone_verified = True
         db.session.commit()
     else:
         return error("Enter your email or phone number", 400)

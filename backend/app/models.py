@@ -32,9 +32,7 @@ class User(db.Model):
     car_plate = db.Column(db.String(30))
     car_seats = db.Column(db.Integer)
     car_wheelchair = db.Column(db.Boolean, nullable=False, default=False)
-    # One-time phone login code (stored hashed, expires after 10 minutes)
-    login_code_hash = db.Column(db.String(255))
-    login_code_expires = db.Column(db.DateTime)
+    phone_verified = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
 
 
@@ -372,4 +370,19 @@ class CriticalityReview(db.Model):
     reviewer_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     classification = db.Column(db.String(20), nullable=False)
     note = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
+
+
+class PhoneCode(db.Model):
+    """A one-time code sent on WhatsApp, for sign-up or login. Only its hash is stored."""
+
+    __tablename__ = "phone_codes"
+
+    id = db.Column(db.Integer, primary_key=True)
+    phone = db.Column(db.String(40), nullable=False)
+    purpose = db.Column(db.String(20), nullable=False)  # "signup" or "login"
+    code_hash = db.Column(db.String(255), nullable=False)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    attempts = db.Column(db.Integer, nullable=False, default=0)
+    verified = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
