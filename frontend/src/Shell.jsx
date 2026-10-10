@@ -119,10 +119,12 @@ export function roleLabel(role) {
   }[role] || role;
 }
 
-export function Guard({ children }) {
+export function Guard({ children, roles }) {
   const { user, ready } = useAuth();
   if (!ready) return <div className="app-loading">Ma'ak</div>;
   if (!user) return <Navigate to="/login" replace />;
+  // A signed-in user opening another role's page goes back to their own home.
+  if (roles && !roles.includes(user.role)) return <Navigate to={homeFor(user.role)} replace />;
   return children;
 }
 
