@@ -218,6 +218,22 @@ class MaakApiTest(unittest.TestCase):
         self.call("get", "/ministry/ngos", "ministry")
         self.call("get", "/distribution", "ministry")
 
+        # Notices: the Ministry and doctors post events; families see the ones near them
+        self.call("post", "/announcements", "ministry", json={"kind": "screening", "title": "Free eye screening", "region": "South", "starts_at": "2030-03-01T09:00"})
+        self.call("post", "/announcements", "doctor", json={"kind": "doctor_visit", "title": "Dr Nadine check-ups", "shelter_id": alay["id"], "starts_at": "2030-03-02T10:00"})
+        national = self.call("post", "/announcements", "ministry", json={"kind": "vaccination", "title": "Polio campaign", "starts_at": "2030-03-03T08:00"})["announcement"]
+        self.call("post", "/announcements", "family", json={"kind": "other", "title": "x", "starts_at": "2030-01-01"}, expect=403)
+        self.call("post", "/announcements", "doctor", json={"kind": "doctor_visit", "title": "No date"}, expect=400)
+        seen = {n["title"] for n in self.call("get", "/home", "family")["announcements"]}
+        self.assertIn("Dr Nadine check-ups", seen)       # her shelter
+        self.assertIn("Polio campaign", seen)            # all of Lebanon
+        self.assertNotIn("Free eye screening", seen)     # another region
+        self.assertIn("Free eye screening", {n["title"] for n in self.call("get", "/volunteer/board", "volunteer")["announcements"]})
+        doctor_notices = self.call("get", "/announcements", "doctor")["mine"]
+        self.assertEqual([n["posted_by_role"] for n in doctor_notices], ["Doctor"])
+        self.call("delete", f"/announcements/{national['id']}", "doctor", expect=403)
+        self.call("delete", f"/announcements/{national['id']}", "ministry")
+
         # Role checks
         self.call("get", "/ministry/overview", "family", expect=403)
         self.call("get", "/shelter/board", "donor", expect=403)

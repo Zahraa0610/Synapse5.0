@@ -39,6 +39,43 @@ export function useData(path) {
   return { data, error, loading, reload, setError };
 }
 
+export const NOTICE_KINDS = [
+  { value: "doctor_visit", label: "Volunteer doctor visit" },
+  { value: "free_healthcare_day", label: "Free healthcare day" },
+  { value: "screening", label: "Free screening day" },
+  { value: "vaccination", label: "Vaccination campaign" },
+  { value: "other", label: "Other health event" },
+];
+
+function noticeWhen(item) {
+  if (!item.starts_at) return "";
+  const start = formatWhen(item.starts_at);
+  if (!item.ends_at) return start;
+  const sameDay = item.starts_at.slice(0, 10) === item.ends_at.slice(0, 10);
+  return `${start} – ${sameDay ? new Date(item.ends_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : formatWhen(item.ends_at)}`;
+}
+
+// One event (doctor visit, screening day...) as everyone sees it.
+export function NoticeCard({ item, onRemove }) {
+  const { t } = useI18n();
+  const where = item.shelter_name || (item.region ? `${t("Region")}: ${item.region}` : t("All of Lebanon"));
+  return (
+    <div className="card stack notice">
+      <div className="spread">
+        <span className="eyebrow">{t(NOTICE_KINDS.find((k) => k.value === item.kind)?.label || item.kind)}</span>
+        <span className="small muted">{noticeWhen(item)}</span>
+      </div>
+      <strong>{item.title}</strong>
+      <p className="small muted">{[item.location, where].filter(Boolean).join(" · ")}</p>
+      {item.details && <p className="small">{item.details}</p>}
+      <div className="spread">
+        {item.posted_by && <span className="small muted">{t("Posted by")} {item.posted_by}{item.posted_by_role ? ` · ${t(item.posted_by_role)}` : ""}</span>}
+        {onRemove && <button className="text-btn" type="button" onClick={() => onRemove(item)}>{t("Remove")}</button>}
+      </div>
+    </div>
+  );
+}
+
 export function HomePage() {
   const { t } = useI18n();
   const { user } = useAuth();
@@ -74,18 +111,10 @@ export function HomePage() {
             <Link className="card" to="/emergency"><strong>{t("Emergency card")}</strong><p className="small muted">{t("Works offline once saved")}</p></Link>
             <Link className="card" to="/requests#donations"><strong>{t("Ask for donations")}</strong><p className="small muted">{t("For families outside shelters")}</p></Link>
           </div>
-          <section className="card">
+          <section className="stack">
             <h3>{t("Near you")}</h3>
-            {data.announcements.length === 0 && <p className="muted small">No visits announced.</p>}
-            {data.announcements.map((item) => (
-              <div className="row" key={item.id}>
-                <div>
-                  <strong>{item.title}</strong>
-                  <div className="small muted">{item.location} · {formatWhen(item.starts_at)}</div>
-                </div>
-                <Pill value={item.kind}>{item.kind === "doctor_visit" ? "Doctor visit" : "Free care"}</Pill>
-              </div>
-            ))}
+            {data.announcements.length === 0 && <p className="muted small">{t("No visits announced.")}</p>}
+            {data.announcements.map((item) => <NoticeCard key={item.id} item={item} />)}
           </section>
           {data.upcoming.length > 0 && (
             <section className="card">

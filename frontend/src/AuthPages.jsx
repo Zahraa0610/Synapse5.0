@@ -30,7 +30,7 @@ export function LandingPage() {
   return (
     <div className="center-page">
       <div className="auth-wrap">
-        <div className="spread"><Mark /><LangToggle /></div>
+        <div className="spread"><Mark size={88} /><LangToggle /></div>
         <h1 style={{ marginTop: 28 }}>{t("Your health record, wherever you go.")}</h1>
         <p className="muted">Ma'ak keeps a health passport with displaced families, shelters, volunteers, and the Ministry of Public Health.</p>
         <div className="stack" style={{ marginTop: 22 }}>
@@ -90,7 +90,7 @@ export function LoginPage() {
   return (
     <div className="center-page">
       <form className="auth-wrap auth-card" onSubmit={submit}>
-        <div className="spread"><Mark /><LangToggle /></div>
+        <div className="spread"><Mark size={56} /><LangToggle /></div>
         <div>
           <h1>{t("Welcome back")}</h1>
           <p className="muted">{t("Sign in to Ma'ak. Your role is remembered from sign-up.")}</p>
@@ -230,7 +230,7 @@ export function RegisterPage() {
   return (
     <div className="center-page">
       <form className="auth-wrap auth-card" onSubmit={step === "review" ? finish : nextAccount}>
-        <div className="spread"><Mark /><LangToggle /></div>
+        <div className="spread"><Mark size={56} /><LangToggle /></div>
         {step === "account" && (
           <>
             <div>
@@ -433,7 +433,7 @@ export function EmergencyPage() {
   return (
     <div className="center-page">
       <div className="auth-wrap stack">
-        <div className="spread"><Mark /><LangToggle /></div>
+        <div className="spread"><Mark size={56} /><LangToggle /></div>
         <h1>{t("Emergency summary")}</h1>
         <Note>{t("No internet is required for a summary saved on this phone.")}</Note>
         {saved.length === 0 && <p className="muted">Nothing is saved on this phone yet. Sign in and choose “Save on this phone” from a health passport.</p>}
