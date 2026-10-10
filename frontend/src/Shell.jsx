@@ -20,7 +20,7 @@ const PHONE_NAV = {
   ],
   donor: [
     ["/donor", "Needs"],
-    ["/donor/gifts", "My gifts"],
+    ["/donor/gifts", "My donations"],
     ["/me", "Profile"],
   ],
 };

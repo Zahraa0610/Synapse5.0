@@ -482,7 +482,14 @@ function GiveForm({ opportunity, onDone }) {
     });
     if (result) { setDone(true); onDone?.(); }
   }
-  if (done) return <div className="banner green small">{t("Thank you. Your gift is recorded as pledged. The shelter coordinator confirms when it arrives.")}</div>;
+  if (done) {
+    return (
+      <div className="banner green stack">
+        <strong>{t("Thank you!")}</strong>
+        <span className="small">{t(opportunity.kind === "request" ? "The family will confirm when they receive it." : "The shelter coordinator will confirm when it is received.")}</span>
+      </div>
+    );
+  }
   return (
     <form className="stack" onSubmit={submit}>
       <div className="segment">
@@ -553,14 +560,14 @@ export function DonorGiftsPage() {
   const total = gifts.filter((g) => g.kind === "money").reduce((sum, g) => sum + (g.amount || 0), 0);
   return (
     <div className="stack">
-      <PageTitle>My gifts</PageTitle>
+      <PageTitle>My donations</PageTitle>
       <ErrorText>{error}</ErrorText>
       <div className="stat-grid">
-        <Stat value={gifts.length} label="Gifts" />
+        <Stat value={gifts.length} label="Donations" />
         <Stat value={money(total)} label="Money given" />
       </div>
       <section className="card">
-        {data && gifts.length === 0 && <Empty>{t("You have not given yet.")} <Link to="/donor">{t("See needs")}</Link></Empty>}
+        {data && gifts.length === 0 && <Empty>{t("You have not donated yet.")} <Link to="/donor">{t("See needs")}</Link></Empty>}
         {gifts.map((gift) => (
           <div className="row" key={gift.id}>
             <div>
@@ -717,7 +724,7 @@ function ResidentTable({ rows, reload, t }) {
     <div className="card">
       <div className="table-wrap">
         <table className="data">
-          <thead><tr><th>{t("Name")}</th><th>{t("Passport ID")}</th><th>{t("Age")}</th><th>{t("Suggested")}</th><th>{t("Patient status")}</th></tr></thead>
+          <thead><tr><th>{t("Name")}</th><th>{t("Passport ID")}</th><th>{t("Age")}</th><th>{t("Status")}</th><th>{t("Change status")}</th></tr></thead>
           <tbody>
             {rows.map((row) => (
               <tr key={row.id}>
