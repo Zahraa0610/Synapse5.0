@@ -6,7 +6,7 @@ import { LangToggle, Mark } from "./ui";
 const PHONE_NAV = {
   caregiver: [
     ["/home", "Home"],
-    ["/passport", "Passport"],
+    ["/passport", "Health passport"],
     ["/care", "Care"],
     ["/requests", "Requests"],
     ["/me", "Profile"],
