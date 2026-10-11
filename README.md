@@ -195,10 +195,10 @@ python manage.py reset          # delete ALL data in Firestore (asks for confirm
 
 ## Team
 
-<!-- Add the team members' names and roles here. -->
-
-- _Name_ — role
-- _Name_ — role
+- Zahraa Jouny
+- Aya Halawi
+- Rabab Kanaan
+- Zaynab Youssef
 
 ## Project layout
 
