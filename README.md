@@ -19,13 +19,31 @@ Ministry of Public Health around one thing: keeping people's health care going w
 
 The app works in **English and Arabic** (right-to-left).
 
+## Screenshots
+
+| Family home (phone) | Health passport | Care needs |
+|---|---|---|
+| ![Family home](docs/screenshots/family-home.png) | ![Health passport](docs/screenshots/health-passport.png) | ![Care needs](docs/screenshots/care-needs.png) |
+
+| Sign up with a phone number | Doctor: patients |
+|---|---|
+| ![Sign up](docs/screenshots/sign-up.png) | ![Doctor patients](docs/screenshots/doctor-patients.png) |
+
+**Shelter coordinator dashboard**
+
+![Shelter dashboard](docs/screenshots/shelter-dashboard.png)
+
+**Ministry of Public Health: national overview**
+
+![Ministry overview](docs/screenshots/ministry-overview.png)
+
 ## Tech
 
 | Part | Stack |
 |---|---|
 | Backend | Python 3, Flask, JWT auth |
 | Database | Google Cloud **Firestore** (Firebase) |
-| Verification codes | **WhatsApp** through Meta Cloud API or Twilio |
+| Verification codes | Printed in the backend terminal by default; optional **WhatsApp** (Meta Cloud API or Twilio) |
 | Frontend | React 19, React Router, Vite |
 
 Passwords and verification codes are stored only as salted hashes (scrypt), never as plain text.
@@ -40,10 +58,21 @@ Passwords and verification codes are stored only as salted hashes (scrypt), neve
    downloads. Move it to `backend/firebase-key.json`. **Never commit this file** (it is in
    `.gitignore`).
 
-## Set up WhatsApp codes
+## Verification codes
+
+Everyone signs up with a phone number confirmed by a 6-digit code. **By default no messaging
+service is needed:** the code is printed in the terminal where the backend runs, like this:
+
+```
+ * WhatsApp is not configured. Verification code for +96170123456: 482913
+```
+
+Read the code from the terminal and type it in the app. This is the setup used for the
+project demo. To send real WhatsApp messages instead, follow one of the optional setups below.
+
+## Optional: send codes on WhatsApp
 
 Codes can be sent through **Meta's WhatsApp Cloud API** (free test number) or **Twilio**.
-If neither is configured, codes are printed in the backend console so development still works.
 
 ### Option A: Meta WhatsApp Cloud API (recommended)
 
@@ -81,9 +110,9 @@ Copy `backend/.env.example` to `backend/.env` and fill it in:
 ```
 MAAK_SECRET=any-long-random-text
 FIREBASE_CREDENTIALS=firebase-key.json
-META_WA_TOKEN=EAAG...your-token
-META_WA_PHONE_NUMBER_ID=123456789012345
 ```
+
+Add the `META_WA_*` or `TWILIO_*` lines only if you set up WhatsApp codes.
 
 ## Run it
 
@@ -108,8 +137,8 @@ npm run dev                       # open http://localhost:5173
 
 The system starts empty. The Ministry admin registers shelters (Ministry → Shelters → Register a
 shelter) and approves clinician and NGO accounts; everyone else signs up in the app with a phone
-number confirmed by a WhatsApp code. Email is optional; adding one lets a person also sign in with
-email and password.
+number confirmed by a code (shown in the backend terminal unless WhatsApp is set up). Email is
+optional; adding one lets a person also sign in with email and password.
 
 ## Demo mode (this branch only)
 
@@ -151,6 +180,25 @@ python manage.py reset          # delete ALL data in Firestore (asks for confirm
 - **No exact addresses** are asked for in donation requests from families outside shelters.
 - **Login codes are single-use**, expire after 10 minutes, allow 5 attempts and one resend per minute;
   the API never reveals whether a phone number has an account.
+
+## Known limitations
+
+- **Verification codes appear in the server terminal** unless a WhatsApp provider is configured, so
+  only whoever runs the backend can read them. Fine for a demo, not for public use.
+- **Uploaded files** (passport documents, licenses) are saved in `backend/uploads/` on the server,
+  not in Firebase. They are lost if the server's disk is wiped; production would use Firebase Storage.
+- **Monthly shelter reports** are saved when someone opens the report page; there is no background
+  job that creates them on the 1st of each month.
+- **Forecasts and outbreak flags** are simple rules on recent data, meant as hints for a person to
+  confirm, not predictions.
+- The app is a **web app**; it is not packaged for the App Store or Google Play.
+
+## Team
+
+<!-- Add the team members' names and roles here. -->
+
+- _Name_ — role
+- _Name_ — role
 
 ## Project layout
 
