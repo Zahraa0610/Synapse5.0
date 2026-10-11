@@ -25,7 +25,7 @@ The app works in **English and Arabic** (right-to-left).
 |---|---|
 | Backend | Python 3, Flask, JWT auth |
 | Database | Google Cloud **Firestore** (Firebase) |
-| Verification codes | **WhatsApp** through Twilio |
+| Verification codes | **WhatsApp** through Meta Cloud API or Twilio |
 | Frontend | React 19, React Router, Vite |
 
 Passwords and verification codes are stored only as salted hashes (scrypt), never as plain text.
@@ -40,18 +40,39 @@ Passwords and verification codes are stored only as salted hashes (scrypt), neve
    downloads. Move it to `backend/firebase-key.json`. **Never commit this file** (it is in
    `.gitignore`).
 
-## Set up WhatsApp codes (Twilio)
+## Set up WhatsApp codes
 
-1. Create a free account at <https://www.twilio.com/try-twilio>.
-2. In the Twilio console: **Messaging → Try it out → Send a WhatsApp message**. This is the
-   WhatsApp **sandbox**: it shows a number (`+1 415 523 8886`) and a join phrase like `join red-tiger`.
-3. On each phone that will receive codes, send that join phrase on WhatsApp to the sandbox number
-   (once per phone).
-4. Copy the **Account SID** and **Auth Token** from the Twilio console home page.
+Codes can be sent through **Meta's WhatsApp Cloud API** (free test number) or **Twilio**.
+If neither is configured, codes are printed in the backend console so development still works.
 
-For a real launch, register your own WhatsApp sender in Twilio and an approved *authentication*
-template, then set `TWILIO_WHATSAPP_FROM` to your number and `TWILIO_CONTENT_SID` to the template.
-If Twilio is not configured, codes are printed in the backend console so development still works.
+### Option A: Meta WhatsApp Cloud API (recommended)
+
+1. Go to <https://developers.facebook.com> and log in with Facebook → **My Apps → Create app** →
+   use case **"Connect with customers through WhatsApp"** (or type *Business*) → create.
+2. In the app, open **WhatsApp → API Setup**. Meta gives you a free **test phone number**.
+3. Under **To**, click **Manage phone number list** and add each phone that will receive codes
+   (up to 5). Each phone gets a WhatsApp message to confirm.
+4. On the same page copy the **temporary access token** and the **Phone number ID**.
+5. From each test phone, send any message (e.g. "hi") to the test number. WhatsApp then allows the
+   app to reply with codes for 24 hours. Send another message if codes stop arriving.
+
+In `backend/.env`:
+
+```
+META_WA_TOKEN=EAAG...your-token
+META_WA_PHONE_NUMBER_ID=123456789012345
+```
+
+The temporary token expires after **24 hours**. For a token that lasts, create a **System user** in
+Meta Business Settings, give it the app and the WhatsApp account, and generate a permanent token.
+To message people who have not written first, create an **Authentication** message template in
+WhatsApp Manager and set `META_WA_TEMPLATE` to its name.
+
+### Option B: Twilio
+
+Twilio's free trial is not available in every country (not in Lebanon). With a paid account, set
+`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` and `TWILIO_WHATSAPP_FROM` in `backend/.env`; the WhatsApp
+sandbox needs each phone to send its "join" phrase first.
 
 ## Configure
 
@@ -60,9 +81,8 @@ Copy `backend/.env.example` to `backend/.env` and fill it in:
 ```
 MAAK_SECRET=any-long-random-text
 FIREBASE_CREDENTIALS=firebase-key.json
-TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxx
-TWILIO_AUTH_TOKEN=xxxxxxxxxxxxxxxx
-TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
+META_WA_TOKEN=EAAG...your-token
+META_WA_PHONE_NUMBER_ID=123456789012345
 ```
 
 ## Run it
@@ -108,7 +128,7 @@ follow while recording. Use a **separate Firebase project** for the demo so it n
 
 ## Tests
 
-The API tests run the real backend on an in-memory store (no Firebase or Twilio needed):
+The API tests run the real backend on an in-memory store (no Firebase or WhatsApp account needed):
 
 ```bash
 cd backend
@@ -139,7 +159,7 @@ backend/
   app/
     models.py          data models (one Firestore collection each)
     store.py           small model layer on Firestore (+ in-memory store for tests)
-    whatsapp.py        sends verification codes through Twilio
+    whatsapp.py        sends verification codes (Meta Cloud API or Twilio)
     domain.py          shared logic: criticality, priorities, reports, forecasts
     routes_*.py        API endpoints by area
   tests/               end-to-end API tests

@@ -40,7 +40,12 @@ def create_app(config=None):
         STORE=os.environ.get("MAAK_STORE", "firestore"),
         FIREBASE_CREDENTIALS=os.environ.get("FIREBASE_CREDENTIALS"),
         FIREBASE_PROJECT_ID=os.environ.get("FIREBASE_PROJECT_ID"),
-        # WhatsApp verification codes (see app/whatsapp.py)
+        # WhatsApp verification codes (see app/whatsapp.py): Meta Cloud API or Twilio
+        META_WA_TOKEN=os.environ.get("META_WA_TOKEN"),
+        META_WA_PHONE_NUMBER_ID=os.environ.get("META_WA_PHONE_NUMBER_ID"),
+        META_WA_TEMPLATE=os.environ.get("META_WA_TEMPLATE"),
+        META_WA_TEMPLATE_LANG=os.environ.get("META_WA_TEMPLATE_LANG"),
+        META_WA_API_VERSION=os.environ.get("META_WA_API_VERSION"),
         TWILIO_ACCOUNT_SID=os.environ.get("TWILIO_ACCOUNT_SID"),
         TWILIO_AUTH_TOKEN=os.environ.get("TWILIO_AUTH_TOKEN"),
         TWILIO_WHATSAPP_FROM=os.environ.get("TWILIO_WHATSAPP_FROM"),
