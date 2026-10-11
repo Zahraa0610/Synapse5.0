@@ -2,7 +2,7 @@ import re
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from flask import Blueprint, g, jsonify, request
+from flask import Blueprint, current_app, g, jsonify, request
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from . import whatsapp
@@ -184,6 +184,10 @@ def send_code():
         )
     )
     db.session.commit()
+    if current_app.config.get("DEMO"):
+        # Demo mode: the demo numbers are fictional, so show the code instead of sending it.
+        body = {"ok": True, "phone": phone, "channel": "demo", "demo_code": code}
+        return jsonify(body)
     try:
         channel = whatsapp.send_code(phone, code)
     except whatsapp.WhatsAppError as exc:

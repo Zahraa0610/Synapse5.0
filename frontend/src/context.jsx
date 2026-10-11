@@ -298,6 +298,8 @@ const ar = {
   "Send support request": "إرسال طلب الدعم",
   "My previous requests": "طلباتي السابقة",
   "No requests yet.": "لا توجد طلبات بعد.",
+  "Demo mode": "وضع العرض التجريبي",
+  "Demo mode: your code is": "وضع العرض: رمزك هو",
   "Email (optional)": "البريد الإلكتروني (اختياري)",
   "Password for email sign-in (8+ characters)": "كلمة سر للدخول بالبريد (8 أحرف أو أكثر)",
   "You sign in with a WhatsApp code sent to your phone. Adding an email lets you also sign in with email and password.": "تدخل برمز يصلك على واتساب. إضافة بريد إلكتروني تتيح لك الدخول أيضاً بالبريد وكلمة السر.",

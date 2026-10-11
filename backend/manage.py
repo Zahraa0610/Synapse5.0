@@ -2,6 +2,7 @@
 
     python manage.py create-admin   Create the first Ministry of Public Health account
     python manage.py reset          Delete ALL data in the Firestore database
+    python manage.py demo           Delete ALL data, then load the fictional demo scenario
 """
 
 import getpass
@@ -44,7 +45,15 @@ def create_admin():
     print(f"Ministry admin {email} created. They can approve doctors, NGOs and other Ministry staff.")
 
 
-COMMANDS = {"create-admin": create_admin, "reset": reset}
+def demo():
+    from app.demo_data import load_demo_data
+
+    reset()
+    load_demo_data()
+    print("Demo data loaded. Start with: python run.py --demo")
+
+
+COMMANDS = {"create-admin": create_admin, "reset": reset, "demo": demo}
 
 if __name__ == "__main__":
     if len(sys.argv) != 2 or sys.argv[1] not in COMMANDS:

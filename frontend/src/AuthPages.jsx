@@ -55,6 +55,25 @@ export function LoginPage() {
   const [hint, setHint] = useState("");
   const [sending, setSending] = useState(false);
   const [codeSent, setCodeSent] = useState(false);
+  const [demoInfo, setDemoInfo] = useState(null);
+
+  // Demo branch: quick-login buttons when the server runs with --demo.
+  useEffect(() => {
+    api("/health")
+      .then((health) => (health.demo ? api("/demo/accounts") : null))
+      .then((info) => info && setDemoInfo(info))
+      .catch(() => {});
+  }, []);
+
+  async function demo(address) {
+    setError("");
+    try {
+      const user = await login({ email: address, password: demoInfo.password });
+      navigate(homeFor(user.role));
+    } catch (err) {
+      setError(err.message);
+    }
+  }
 
   async function sendCode() {
     setError("");
@@ -63,9 +82,10 @@ export function LoginPage() {
     try {
       const result = await api("/auth/send-code", { method: "POST", body: JSON.stringify({ phone, purpose: "login" }) });
       setCodeSent(true);
-      setHint(result.channel === "console"
-        ? t("WhatsApp is not set up on this server yet. The code was printed in the server console.")
-        : t("If this number has an account, we sent a code on WhatsApp."));
+      setHint(result.demo_code ? `${t("Demo mode: your code is")} ${result.demo_code}`
+        : result.channel === "console"
+          ? t("WhatsApp is not set up on this server yet. The code was printed in the server console.")
+          : t("If this number has an account, we sent a code on WhatsApp."));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -117,6 +137,16 @@ export function LoginPage() {
         <Button className="full" type="submit">Sign in</Button>
         <Link to="/register">{t("Create an account")}</Link>
         <Link to="/emergency">{t("Emergency aid works without signing in")}</Link>
+        {demoInfo && (
+          <div className="demo-box">
+            <div className="small"><strong>{t("Demo mode")}</strong> · {t("Try a role")}</div>
+            <div className="demo-grid" style={{ marginTop: 8 }}>
+              {demoInfo.accounts.map(({ label, email: address }) => (
+                <button key={address} type="button" onClick={() => demo(address)}>{t(label)}</button>
+              ))}
+            </div>
+          </div>
+        )}
       </form>
     </div>
   );
@@ -379,9 +409,10 @@ function PhoneVerify({ phone, onPhone, verified, onVerified }) {
     try {
       const result = await api("/auth/send-code", { method: "POST", body: JSON.stringify({ phone, purpose: "signup" }) });
       setSent(true);
-      setHint(result.channel === "console"
-        ? t("WhatsApp is not set up on this server yet. The code was printed in the server console.")
-        : t("We sent a 6-digit code on WhatsApp."));
+      setHint(result.demo_code ? `${t("Demo mode: your code is")} ${result.demo_code}`
+        : result.channel === "console"
+          ? t("WhatsApp is not set up on this server yet. The code was printed in the server console.")
+          : t("We sent a 6-digit code on WhatsApp."));
     } catch (err) {
       setError(err.message);
     } finally {
